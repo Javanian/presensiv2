@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose up*)",
+      "Bash(docker compose down*)",
+      "Bash(docker compose build*)",
+      "Bash(docker compose restart*)",
+      "Bash(docker compose ps*)",
+      "Bash(docker compose logs*)",
+      "Bash(docker logs*)",
+      "Bash(docker exec presensiv2_backend*)",
+      "Bash(docker exec presensiv2_db*)",
+      "Bash(npx expo start*)",
+      "Bash(npm install*)",
+      "Bash(npm run*)",
+      "Bash(ls*)",
+      "Bash(cat*)",
+      "Bash(echo*)",
+      "Bash(mkdir*)",
+      "Bash(cp*)",
+      "Bash(ipconfig*)",
+      "Bash(curl http://localhost:8000*)",
+      "Bash(dir \"d:\\\\Presensi Online SSB\\\\presensiv2\\\\web\\\\src\\\\components\\\\ui\")",
+      "Bash(cmd /c \"dir \"\"d:\\\\Presensi Online SSB\\\\presensiv2\\\\web\\\\src\\\\components\\\\ui\"\"\")",
+      "Bash(cmd /c \"dir /b \"\"d:\\\\Presensi Online SSB\\\\presensiv2\\\\web\\\\src\\\\components\\\\ui\"\"\")",
+      "Bash(cmd /c \"dir /b \"\"d:\\\\Presensi Online SSB\\\\presensiv2\\\\web\\\\src\\\\lib\"\"\")",
+      "Bash(sed -i 's|<link rel=\"\"icon\"\" type=\"\"image/svg+xml\"\" href=\"\"/vite.svg\"\" />|<link rel=\"\"icon\"\" type=\"\"image/svg+xml\"\" href=\"\"/ssb.svg\"\" />|' \"d:/Presensi Online SSB/presensiv2/web/index.html\")",
+      "Bash(sed -i 's|<title>Presensi Online SSB v2</title>|<title>HRIS SSB</title>|' \"d:/Presensi Online SSB/presensiv2/web/index.html\")",
+      "Bash(\"d:/Presensi Online:*)",
+      "Bash(cmd /c \"dir /b /s \"\"d:\\\\Presensi Online SSB\\\\presensiv2\\\\web\\\\src\"\"\")",
+      "Bash(grep -v \"^$\")"
+    ],
+    "deny": [
+      "Bash(docker compose down -v*)",
+      "Bash(rm -rf*)",
+      "Bash(docker system prune*)"
+    ],
+    "additionalDirectories": [
+      "D:\\Presensi Online SSB\\presensiv2"
+    ]
+  }
+}

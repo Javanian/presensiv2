@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://presensiv2:presensiv2pass@localhost:5432/presensiv2"
+      ],
+      "env": {}
+    }
+  }
+}

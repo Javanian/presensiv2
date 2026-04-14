@@ -1,5 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
-import { TOKEN_KEYS, persistTokens } from '../store/authStore';
+import { TOKEN_KEYS, persistTokens, getStoredTokens } from '../store/authStore';
 import { FaceStatus, FaceRegisterResponse, FaceVerifyResponse } from '../types/face';
 import { apiClient, BASE_URL } from './axios';
 
@@ -40,7 +39,7 @@ async function faceUpload<T>(path: string, formData: FormData): Promise<T> {
   console.log('[faceUpload] BASE_URL:', BASE_URL);
   console.log('[faceUpload] full URL:', `${BASE_URL}${path}`);
 
-  const token = await SecureStore.getItemAsync(TOKEN_KEYS.ACCESS);
+  const { access: token } = await getStoredTokens();
   console.log('[faceUpload] token present:', !!token);
 
   // First-call on Android sometimes fails with a transient network error; retry once.
@@ -55,7 +54,7 @@ async function faceUpload<T>(path: string, formData: FormData): Promise<T> {
 
   if (res.status === 401) {
     // Access token expired — refresh and retry once
-    const refreshToken = await SecureStore.getItemAsync(TOKEN_KEYS.REFRESH);
+    const { refresh: refreshToken } = await getStoredTokens();
     if (!refreshToken) {
       const err: any = new Error('Sesi habis. Silakan login kembali.');
       err.isAxiosError = true;
@@ -72,7 +71,7 @@ async function faceUpload<T>(path: string, formData: FormData): Promise<T> {
       throw err;
     }
     await persistTokens(await refreshRes.json());
-    const newToken = await SecureStore.getItemAsync(TOKEN_KEYS.ACCESS);
+    const { access: newToken } = await getStoredTokens();
     res = await _xhrPost(`${BASE_URL}${path}`, newToken, formData).catch((cause: unknown) => {
       const err: any = new Error(cause instanceof Error ? cause.message : 'Network request failed');
       err.isAxiosError = true;

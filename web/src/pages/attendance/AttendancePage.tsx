@@ -41,13 +41,14 @@ function statusLabel(status: AttendanceStatus | null): string {
 
 function exportCSV(records: TeamAttendanceRecord[]) {
   const headers = [
-    'ID', 'ID Karyawan', 'Nama', 'Check-in', 'Check-out',
+    'ID', 'ID Karyawan', 'Nama', 'Site', 'Check-in', 'Check-out',
     'Jam Kerja (menit)', 'Lembur (menit)', 'Status', 'Akhir Pekan', 'Hari Libur', 'Timezone',
   ]
   const rows = records.map((r) => [
     r.id,
     r.employee_id,
     r.employee_name,
+    r.site_name ?? '',
     r.checkin_time,
     r.checkout_time ?? '',
     r.work_duration_minutes,
@@ -168,7 +169,7 @@ export function AttendancePage() {
     setPage(0)
   }
 
-  const TABLE_COLS = 8
+  const TABLE_COLS = 7
 
   return (
     <div className="space-y-6">
@@ -318,17 +319,14 @@ export function AttendancePage() {
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide">
                   Nama
                 </th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide hidden md:table-cell">
+                  Site
+                </th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide">
-                  Check-in
+                  Check-in / Check-out
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide hidden md:table-cell">
-                  Check-out
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide hidden md:table-cell">
-                  Jam Kerja
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide hidden lg:table-cell">
-                  Lembur
+                  Durasi
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide">
                   Status
@@ -392,37 +390,66 @@ export function AttendancePage() {
                       <td className="px-4 py-3 text-left">
                         <span className="font-medium text-text-primary">{record.employee_name}</span>
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <p className="text-xs text-text-secondary leading-tight">
-                          {formatDate(record.checkin_time, tz)}
-                        </p>
-                        <p className="text-sm text-text-primary font-medium leading-tight">
-                          {formatTime(record.checkin_time, tz)}
-                        </p>
-                      </td>
                       <td className="px-4 py-3 hidden md:table-cell text-center">
-                        {record.checkout_time ? (
-                          <>
-                            <p className="text-xs text-text-secondary leading-tight">
-                              {formatDate(record.checkout_time, tz)}
-                            </p>
-                            <p className="text-sm text-text-primary font-medium leading-tight">
-                              {formatTime(record.checkout_time, tz)}
-                            </p>
-                          </>
-                        ) : (
-                          <span className="text-text-secondary italic">—</span>
-                        )}
+                        <span className="text-xs text-text-secondary">
+                          {record.site_name ?? '—'}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 hidden md:table-cell text-center text-text-secondary">
-                        {record.work_duration_minutes > 0
-                          ? formatDuration(record.work_duration_minutes)
-                          : '—'}
+                      {/* Check-in / Check-out stacked: date kiri, time kanan */}
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex flex-col gap-0.5">
+                          {/* Check-in */}
+                          <div className="flex items-center justify-between gap-2 min-w-[140px]">
+                            <span className="text-[10px] text-text-secondary whitespace-nowrap">
+                              {formatDate(record.checkin_time, tz)}
+                            </span>
+                            <span className="text-xs font-medium text-text-primary whitespace-nowrap">
+                              {formatTime(record.checkin_time, tz)}
+                            </span>
+                          </div>
+                          <div className="border-t border-divider" />
+                          {/* Check-out */}
+                          {record.checkout_time ? (
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] text-text-secondary whitespace-nowrap">
+                                {formatDate(record.checkout_time, tz)}
+                              </span>
+                              <span className="text-xs font-medium text-text-primary whitespace-nowrap">
+                                {formatTime(record.checkout_time, tz)}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center">
+                              <span className="text-xs text-text-secondary italic">Belum checkout</span>
+                            </div>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 hidden lg:table-cell text-center text-text-secondary">
-                        {record.overtime_minutes > 0
-                          ? formatDuration(record.overtime_minutes)
-                          : '—'}
+                      {/* Durasi: Reguler dan Overtime ditumpuk */}
+                      <td className="px-4 py-3 hidden md:table-cell text-center">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center justify-between gap-2 min-w-[100px]">
+                            <span className="text-[10px] font-semibold text-blue-600 whitespace-nowrap">
+                              Reguler
+                            </span>
+                            <span className="text-xs text-text-secondary whitespace-nowrap">
+                              {record.work_duration_minutes > 0
+                                ? formatDuration(record.work_duration_minutes)
+                                : '—'}
+                            </span>
+                          </div>
+                          <div className="border-t border-divider" />
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-semibold text-orange-500 whitespace-nowrap">
+                              Overtime
+                            </span>
+                            <span className="text-xs text-text-secondary whitespace-nowrap">
+                              {record.overtime_minutes > 0
+                                ? formatDuration(record.overtime_minutes)
+                                : '—'}
+                            </span>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <Badge variant={statusBadgeVariant(record.status)}>

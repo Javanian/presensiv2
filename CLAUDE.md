@@ -15,14 +15,14 @@
 - **Containerized:** Docker Compose
 - **Timezone:** Per-site (WIB/WITA/WIT). All timestamps stored in UTC (`TIMESTAMPTZ`). Business logic converts to the site's local timezone.
 
-**Current status (as of 2026-03-15):**
+**Current status (as of 2026-04-14):**
 
 | Component | Phase | Status |
 |-----------|-------|--------|
-| Backend | Phase 7 of 7 | All phases complete |
+| Backend | Phase 7 of 7 + post | All phases complete + Assignments feature added |
 | Mobile | Phase F7 of F7 | F7 (UX hardening) COMPLETE — toast, offline detection, error interceptors, double-submit prevention, full timezone display |
-| Mobile Overtime | — | OvertimeScreen is a stub placeholder; no API integration; `mobile/src/api/overtime.api.ts` does NOT exist |
-| Web Admin | W6 of W6 | ALL PHASES COMPLETE: Auth, User Mgmt, Sites/Shifts/Holidays, Attendance Monitoring, Overtime Mgmt, Dashboard & Reports |
+| Mobile Overtime | — | **FULLY IMPLEMENTED** — submit, list my/team overtimes, approve, reject with calendar + TimeStepper UI |
+| Web Admin | W6 of W6 + post-W6 | ALL PHASES COMPLETE + Leaflet map picker in Sites + Assignments management page |
 
 ---
 
@@ -80,6 +80,7 @@
 | Router | React Router v6 |
 | Icons | lucide-react |
 | Toast | sonner |
+| Map | leaflet 1.9.4 + @types/leaflet — used in `SiteMapPicker` (Sites create/edit) |
 | Token storage | Access token: **memory only** (React Context). Refresh token: **sessionStorage** key `presensiv2_refresh_token`. NEVER localStorage |
 | Dev port | 5173 (Vite dev server) |
 
@@ -109,10 +110,14 @@ presensiv2/
 │
 ├── web/                         ← Web Admin panel (React + Vite) — W1–W5 complete
 │   ├── src/
-│   │   ├── api/                 ← auth, users, sites, shifts, attendance, overtime API modules
-│   │   ├── components/          ← layout/, ui/ (shadcn), users/, sites/, shifts/, holidays/, attendance/, overtime/
+│   │   ├── api/                 ← auth, users, sites, shifts, attendance, overtime, assignments API modules
+│   │   ├── components/
+│   │   │   ├── layout/, ui/ (shadcn), users/, shifts/, holidays/, attendance/, overtime/
+│   │   │   └── sites/
+│   │   │       ├── SiteFormModal.tsx  ← create/edit dialog; horizontal split layout (form left 1/4, map right 3/4)
+│   │   │       └── SiteMapPicker.tsx  ← Leaflet map; OSM tiles; Nominatim search; draggable marker + radius circle
 │   │   ├── hooks/useAuth.ts     ← useLogin, useLogout, useCurrentUser, useHasRole
-│   │   ├── pages/               ← LoginPage, DashboardPage, users/, sites/, shifts/, holidays/, attendance/, overtime/, reports/ReportsPage
+│   │   ├── pages/               ← LoginPage, DashboardPage, users/, sites/, shifts/, holidays/, attendance/, overtime/, reports/ReportsPage, assignments/AssignmentsPage
 │   │   ├── components/dashboard/ ← StatsCard, AttendanceChart (recharts)
 │   │   ├── router/index.tsx     ← all routes; /dashboard and /reports fully implemented (W6 complete)
 │   │   ├── store/               ← authStore.ts (Context + tokenAccessors), AuthProvider.tsx
@@ -161,7 +166,9 @@ presensiv2/
 │           ├── shifts.py
 │           ├── face.py
 │           ├── attendance.py
-│           └── overtime.py
+│           ├── overtime.py
+│           ├── assignments.py   ← shift/site assignment management (ADMIN only)
+│           └── users.py
 │
 └── mobile/
     ├── App.tsx                  ← Root: QueryClientProvider + SafeAreaProvider + RootNavigator
@@ -174,26 +181,31 @@ presensiv2/
         │   ├── axios.ts         ← Axios instance + Bearer token interceptor + 401 refresh queue; exports BASE_URL
         │   ├── auth.api.ts      ← login, refresh, me
         │   ├── attendance.api.ts ← checkin, checkout, getMyAttendance, getTeamAttendance
-        │   └── face.api.ts      ← faceUpload() via XHR (NOT Axios/fetch); register, verify, getStatus
-        │   NOTE: overtime.api.ts does NOT exist — OvertimeScreen is a stub placeholder
+        │   ├── face.api.ts      ← faceUpload() via XHR (NOT Axios/fetch); register, verify, getStatus
+        │   └── overtime.api.ts  ← listMine, listTeam, getById, submit, approve, reject
         ├── hooks/
         │   ├── useAuth.ts       ← useLogin (with authApi.me post-login), useLogout, useMe
         │   ├── useCheckin.ts    ← useCheckin + useCheckout mutations (both exported here)
         │   ├── useAttendance.ts ← useTodayAttendance(siteTimezone), useAttendanceHistory(monthStr), useTeamAttendance(monthStr)
-        │   └── useFaceRegister.ts ← useFaceStatus, useFaceRegister, useFaceVerify
+        │   ├── useFaceRegister.ts ← useFaceStatus, useFaceRegister, useFaceVerify
+        │   ├── useOvertime.ts   ← useMyOvertimes, useTeamOvertimes, useSubmitOvertime, useApproveOvertime, useRejectOvertime
+        │   └── useNetworkStatus.ts ← online/offline detection hook
         ├── screens/
         │   ├── LoginScreen.tsx
         │   ├── HomeScreen.tsx   ← useTodayAttendance with siteTimezone; Intl.DateTimeFormat for display
         │   ├── HistoryScreen.tsx ← infinite scroll + month chip filter; Intl.DateTimeFormat with record.site_timezone
-        │   ├── OvertimeScreen.tsx ← STUB — "fitur masih dalam pengembangan" placeholder, no API integration
-        │   ├── ProfileScreen.tsx ← user info, face status, opens FaceRegisterModal
+        │   ├── OvertimeScreen.tsx ← FULLY IMPLEMENTED: submit (calendar+TimeStepper), list my/team, approve/reject modals, FilterBar with date range
+        │   ├── ProfileScreen.tsx ← user info, face status, opens FaceRegisterModal + ChangePasswordModal
         │   ├── SubordinateAttendanceScreen.tsx ← month arrow-nav, groups records by user_id into EmployeeSummary; uses Intl.DateTimeFormat with site_timezone ✅
         │   ├── SplashScreen.tsx ← checks tokens → authApi.me() → sets auth state
         │   └── LoadingScreen.tsx ← generic spinner
         ├── components/
         │   ├── CheckinModal.tsx  ← deferred useEffect upload pattern (capture → setState → effect fires after CameraView unmounts → XHR verify → Axios checkin)
         │   ├── CheckoutModal.tsx ← inline async pattern (capture → verify → checkout in same async fn); GPS optional
-        │   └── FaceRegisterModal.tsx ← capture → review step (user confirms) → XHR upload
+        │   ├── FaceRegisterModal.tsx ← capture → review step (user confirms) → XHR upload
+        │   ├── ChangePasswordModal.tsx ← change password form (used in ProfileScreen)
+        │   ├── OfflineBanner.tsx ← offline status banner component (uses useNetworkStatus)
+        │   └── DateRangePicker.tsx ← Calendar, DatePickerModal, fmtDateShort, getTodayStr helpers (used in OvertimeScreen)
         ├── navigation/
         │   ├── RootNavigator.tsx ← pub/sub authStore → Splash | Auth | Main
         │   ├── AuthNavigator.tsx ← Login only
@@ -203,7 +215,8 @@ presensiv2/
         └── types/
             ├── auth.ts          ← TokenResponse, UserInfo (includes site_timezone: string | null), LoginPayload
             ├── attendance.ts    ← AttendanceRecord (includes site_timezone: string), TeamAttendanceRecord, EmployeeSummary
-            └── face.ts          ← FaceStatus, FaceRegisterResponse, FaceVerifyResponse
+            ├── face.ts          ← FaceStatus, FaceRegisterResponse, FaceVerifyResponse
+            └── overtime.ts      ← OvertimeRequest (includes employee_id, employee_name), OvertimeSubmitPayload, ApprovePayload, RejectPayload
 ```
 
 ---
@@ -404,6 +417,27 @@ EXPO_PUBLIC_API_TIMEOUT=10000
 
 ---
 
+## Web Admin Architecture Patterns
+
+### SiteFormModal Layout
+- Dialog: `max-w-6xl max-h-[calc(100vh-4rem)] flex flex-col p-0 overflow-hidden` — fits viewport, no outer scroll
+- Body: `flex flex-row` — form left `w-1/4 min-w-[260px] overflow-y-auto`, map right `flex-1`
+- `<form>` wraps only the left column — the map sits outside the form to avoid nested `<form>` elements
+- Default create-mode lat/lng in RHF: `NaN` (not `0`). `Number.isFinite(NaN) === false` → map receives `null` → shows default SSB location without triggering a marker at `0,0`
+
+### SiteMapPicker — Leaflet Integration
+- **CSS:** `import 'leaflet/dist/leaflet.css'` inside the component file
+- **Marker icons:** Default Leaflet icons break in Vite (asset hashing). Fix: delete `_getIconUrl` on `L.Icon.Default.prototype` and point `iconUrl`/`iconRetinaUrl`/`shadowUrl` to unpkg CDN
+- **Default center:** `[-6.2903448109466655, 106.79813861846925]` (SSB Cikarang), zoom 15. Create-mode places a visual marker here but does **not** call `onChange` — user must click/drag to confirm
+- **Edit-mode centering problem:** `useEffect([])` (map init) runs before RHF `reset()` populates lat/lng, so `latitude` prop is `null` at init → map renders at default. Fixed with `viewCenteredRef = useRef(false)`: the sync effect `[latitude, longitude]` calls `setView` the first time real coords arrive and sets the ref to `true`
+- **Flex blank-tile fix:** call `setTimeout(() => map.invalidateSize(), 100)` after `L.map()` init
+- **Map container sizing:** `style={{ width: '100%', height: '100%', minHeight: 0 }}` — no fixed pixel height; fills flex parent
+- **Search:** Nominatim `https://nominatim.openstreetmap.org/search` — debounced 500 ms, fly-only (does not call `onChange`), headers `{ 'Accept-Language': 'id', 'User-Agent': 'presensiv2-webadmin' }`
+- **CSP** (`web/index.html`): `img-src` must include `https://*.tile.openstreetmap.org https://unpkg.com`; `connect-src` must include `https://nominatim.openstreetmap.org`
+- **CORS** (`backend/.env` + `docker-compose.yml` `environment` block): `CORS_ORIGINS` must list all Vite dev ports in use (5173, 5174, …). The `environment` block in `docker-compose.yml` overrides `env_file` — edit both or consolidate into `env_file` only. After any change: `docker compose up -d --force-recreate backend` (restart alone does not re-apply env)
+
+---
+
 ## Role-Based Access Control
 
 | Feature | ADMIN | SUPERVISOR | EMPLOYEE |
@@ -421,6 +455,7 @@ EXPO_PUBLIC_API_TIMEOUT=10000
 | View all attendance | ✓ | ✓ | — |
 | Overtime submit | ✓ | ✓ | ✓ (own only) |
 | Overtime approve/reject | ✓ | ✓ | — |
+| Assignments CRUD | ✓ | — | — |
 
 ---
 
@@ -503,10 +538,8 @@ Mobile SecureStore keys: `presensiv2_access_token`, `presensiv2_refresh_token`.
 ### SubordinateAttendanceScreen
 `SubordinateAttendanceScreen.tsx` exists (visible to SUPERVISOR/ADMIN) for viewing subordinate attendance — relates to the supervisor_id hierarchy added in F6. Month filter is a compact `< Januari 2026 >` arrow-navigator (not a chip scroll), bounded at current month and 12 months back. Groups `TeamAttendanceRecord[]` by `user_id` into collapsible `EmployeeSummary` cards. `formatDate`/`formatTime` use `Intl.DateTimeFormat` with `record.site_timezone` — timezone display is complete (fixed 2026-03-09).
 
-### Mobile overtime.api.ts does not exist
-In the **mobile** app, `mobile/src/api/overtime.api.ts` was never created. `OvertimeScreen.tsx` is a stub placeholder with no API integration. Do not import from it in the mobile codebase.
-
-The **web admin** (`web/src/api/overtime.api.ts`) DOES exist and is fully implemented (list, getById, approve, reject).
+### Mobile OvertimeScreen — fully implemented
+`mobile/src/api/overtime.api.ts`, `mobile/src/hooks/useOvertime.ts`, and `mobile/src/types/overtime.ts` all exist. `OvertimeScreen.tsx` is fully implemented with submit, list, approve, and reject. The earlier stub placeholder has been replaced.
 
 ### Face FormData upload: use XHR only
 Three approaches were tried and ruled out for face registration/verify uploads:
@@ -559,12 +592,13 @@ Never use `value=""` on `<SelectItem>` — Radix throws an error. Use named sent
 - `'__all__'` → empty string / no filter (filter dropdowns)
 
 ### Attendance API Notes
-- List endpoint: `GET /attendance/team` (not `/all`) — returns `TeamAttendanceRecord[]` with `employee_id`, `employee_name`, `site_timezone`
+- List endpoint: `GET /attendance/team` (not `/all`) — returns `TeamAttendanceRecord[]` with `employee_id`, `employee_name`, `site_name`, `site_timezone`
+- `site_name` added 2026-04-14: both backend `TeamAttendanceRecord` schema and frontend `attendance.ts` type now include `site_name: string | null`, populated via `att.site.name`
 - Detail endpoint: `GET /attendance/{id}` — returns `AttendanceDetail` with `latitude`, `longitude`, `auto_checkout`, `site_timezone`; does NOT include employee name
 - Auto-checkout trigger: `POST /attendance/trigger-auto-checkout` (ADMIN only)
 
-### Overtime API Limitation
-`GET /overtime` response (`OvertimeRequestResponse`) does NOT include `employee_name` or `employee_id` — only `attendance_id`. The overtime list table shows request/attendance IDs only. The detail drawer fetches `GET /attendance/{attendance_id}` to get `site_timezone` and attendance context for timezone-correct display.
+### Overtime API — employee fields available
+`OvertimeRequestResponse` now includes `employee_id` and `employee_name` (denormalised from the submitter user). The schema's `from_orm` factory populates these via `att.user.employee_id` / `att.user.name`. The detail drawer still fetches `GET /attendance/{attendance_id}` for `site_timezone` and full attendance context.
 
 ---
 
@@ -593,8 +627,10 @@ Never use `value=""` on `<SelectItem>` — Radix throws an error. Use named sent
 | sites | `/sites` | GET /sites, POST /sites, PUT /sites/{id}, DELETE /sites/{id} |
 | shifts | `/shifts` | CRUD + work_schedules + holidays |
 | face | `/face` | POST /register, POST /verify, GET /status, DELETE / |
-| attendance | `/attendance` | POST /checkin, POST /checkout, GET /me, GET /all, POST /auto-checkout |
-| overtime | `/overtime` | POST /, GET /me, GET /all, GET /{id}, PATCH /{id}/approve, PATCH /{id}/reject |
+| attendance | `/attendance` | POST /checkin, POST /checkout, GET /me, GET /team, POST /trigger-auto-checkout |
+| overtime | `/overtime` | POST /, GET /me, GET / (role-scoped), GET /{id}, GET /attendance/{att_id}, PATCH /{id}/approve, PATCH /{id}/reject |
+| assignments | `/assignments` | GET / (filter by user_id/site_id/active_only), POST /, DELETE /{id} — ADMIN only |
+| users | `/users` | CRUD user management |
 
 Health check: `GET /health`
 

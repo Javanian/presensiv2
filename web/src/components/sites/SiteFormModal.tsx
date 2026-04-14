@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,7 @@ import { isAxiosError } from '@/api/axios'
 import { showSuccess, showError } from '@/utils/toast'
 import { TIMEZONE_OPTIONS } from '@/types/sites'
 import type { SiteResponse } from '@/types/sites'
+import { SiteMapPicker } from './SiteMapPicker'
 
 const siteSchema = z.object({
   name: z.string().min(1, 'Nama lokasi wajib diisi'),
@@ -47,12 +48,13 @@ export function SiteFormModal({ open, onClose, editingSite }: Props) {
   const qc = useQueryClient()
   const isEdit = editingSite !== null
 
-  const { register, handleSubmit, control, reset, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, control, reset, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(siteSchema),
     defaultValues: {
       name: '',
-      latitude: 0,
-      longitude: 0,
+      // NaN so Number.isFinite() → false → map shows default SSB location on create
+      latitude: NaN,
+      longitude: NaN,
       radius_meter: 100,
       timezone: 'Asia/Jakarta',
     },
@@ -68,9 +70,18 @@ export function SiteFormModal({ open, onClose, editingSite }: Props) {
         timezone: editingSite.timezone as 'Asia/Jakarta' | 'Asia/Makassar' | 'Asia/Jayapura',
       })
     } else {
-      reset({ name: '', latitude: 0, longitude: 0, radius_meter: 100, timezone: 'Asia/Jakarta' })
+      reset({ name: '', latitude: NaN, longitude: NaN, radius_meter: 100, timezone: 'Asia/Jakarta' })
     }
   }, [editingSite, open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const watchedLat = useWatch({ control, name: 'latitude' })
+  const watchedLng = useWatch({ control, name: 'longitude' })
+  const watchedRadius = useWatch({ control, name: 'radius_meter' })
+
+  // Pass null to map when value is NaN/non-finite (create mode, not yet set)
+  const mapLat = Number.isFinite(watchedLat) ? watchedLat : null
+  const mapLng = Number.isFinite(watchedLng) ? watchedLng : null
+  const mapRadius = Number.isFinite(watchedRadius) && watchedRadius > 0 ? watchedRadius : 100
 
   const mutation = useMutation({
     mutationFn: (data: FormData) =>
@@ -92,95 +103,125 @@ export function SiteFormModal({ open, onClose, editingSite }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-6xl w-full max-h-[calc(100vh-4rem)] flex flex-col p-0 overflow-hidden">
+
+        {/* Header */}
+        <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b border-border">
           <DialogTitle>
             {isEdit ? `Edit: ${editingSite?.name}` : 'Tambah Lokasi Baru'}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Nama Lokasi *</Label>
-            <Input placeholder="cth. SSB Jakarta" {...register('name')} />
-            {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
-          </div>
+        {/* Body: form left | map right */}
+        <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* ── Left: form fields (1/4 width, scrollable) ── */}
+          <form
+            onSubmit={handleSubmit((d) => mutation.mutate(d))}
+            className="w-1/4 min-w-[260px] flex flex-col overflow-y-auto px-6 py-4 gap-4"
+          >
+            {/* Nama Lokasi */}
+            <div className="space-y-1.5">
+              <Label>Nama Lokasi *</Label>
+              <Input placeholder="cth. SSB Jakarta" {...register('name')} />
+              {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+            </div>
+
+            {/* Latitude */}
             <div className="space-y-1.5">
               <Label>Latitude *</Label>
               <Input
                 type="number"
                 step="any"
-                placeholder="-6.2088"
+                placeholder="-6.2903"
                 {...register('latitude', { valueAsNumber: true })}
               />
               {errors.latitude && <p className="text-xs text-red-500">{errors.latitude.message}</p>}
             </div>
+
+            {/* Longitude */}
             <div className="space-y-1.5">
               <Label>Longitude *</Label>
               <Input
                 type="number"
                 step="any"
-                placeholder="106.8456"
+                placeholder="106.7981"
                 {...register('longitude', { valueAsNumber: true })}
               />
               {errors.longitude && <p className="text-xs text-red-500">{errors.longitude.message}</p>}
             </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <Label>Radius Absensi (meter) *</Label>
-            <Input
-              type="number"
-              placeholder="100"
-              {...register('radius_meter', { valueAsNumber: true })}
-            />
-            {errors.radius_meter && (
-              <p className="text-xs text-red-500">{errors.radius_meter.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Zona Waktu *</Label>
-            <Controller
-              control={control}
-              name="timezone"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TIMEZONE_OPTIONS.map((tz) => (
-                      <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Radius */}
+            <div className="space-y-1.5">
+              <Label>Radius Absensi (meter) *</Label>
+              <Input
+                type="number"
+                placeholder="100"
+                {...register('radius_meter', { valueAsNumber: true })}
+              />
+              {errors.radius_meter && (
+                <p className="text-xs text-red-500">{errors.radius_meter.message}</p>
               )}
+            </div>
+
+            {/* Timezone */}
+            <div className="space-y-1.5">
+              <Label>Zona Waktu *</Label>
+              <Controller
+                control={control}
+                name="timezone"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TIMEZONE_OPTIONS.map((tz) => (
+                        <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.timezone && <p className="text-xs text-red-500">{errors.timezone.message}</p>}
+            </div>
+
+            {/* Hint */}
+            <p className="text-xs text-muted-foreground">
+              Klik peta atau seret marker untuk mengisi koordinat.
+            </p>
+
+            {/* Spacer pushes buttons to bottom */}
+            <div className="flex-1" />
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-2 pt-2 border-t border-border">
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending
+                  ? 'Menyimpan...'
+                  : isEdit ? 'Simpan Perubahan' : 'Tambah Lokasi'}
+              </Button>
+              <Button type="button" variant="outline" onClick={handleClose}>
+                Batal
+              </Button>
+            </div>
+          </form>
+
+          {/* Vertical divider */}
+          <div className="w-px bg-border shrink-0" />
+
+          {/* ── Right: Leaflet map (fills remaining space) ── */}
+          <div className="flex-1 min-h-0 min-w-0">
+            <SiteMapPicker
+              latitude={mapLat}
+              longitude={mapLng}
+              radiusMeter={mapRadius}
+              onChange={(lat, lng) => {
+                setValue('latitude', lat, { shouldValidate: true })
+                setValue('longitude', lng, { shouldValidate: true })
+              }}
             />
-            {errors.timezone && <p className="text-xs text-red-500">{errors.timezone.message}</p>}
           </div>
 
-          {/* Google Maps preview */}
-          {editingSite && (
-            <a
-              href={`https://maps.google.com/?q=${editingSite.latitude},${editingSite.longitude}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-brand hover:underline"
-            >
-              Lihat koordinat di Google Maps ↗
-            </a>
-          )}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>Batal</Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending
-                ? 'Menyimpan...'
-                : isEdit ? 'Simpan Perubahan' : 'Tambah Lokasi'}
-            </Button>
-          </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   )

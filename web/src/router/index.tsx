@@ -12,6 +12,7 @@ import { HolidaysPage } from '@/pages/holidays/HolidaysPage'
 import { AttendancePage } from '@/pages/attendance/AttendancePage'
 import { OvertimePage } from '@/pages/overtime/OvertimePage'
 import { ReportsPage } from '@/pages/reports/ReportsPage'
+import { AssignmentsPage } from '@/pages/assignments/AssignmentsPage'
 
 export const router = createBrowserRouter([
   // Public routes
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
               { path: '/users/:id', element: <UserDetailPage /> },
               { path: '/sites', element: <SitesPage /> },
               { path: '/holidays', element: <HolidaysPage /> },
+              { path: '/assignments', element: <AssignmentsPage /> },
             ],
           },
 

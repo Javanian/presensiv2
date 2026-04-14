@@ -1,5 +1,22 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { TokenResponse, UserInfo } from '../types/auth';
+
+// expo-secure-store tidak support web — fallback ke localStorage
+const storage = {
+  async setItem(key: string, value: string) {
+    if (Platform.OS === 'web') { localStorage.setItem(key, value); return; }
+    await SecureStore.setItemAsync(key, value);
+  },
+  async getItem(key: string): Promise<string | null> {
+    if (Platform.OS === 'web') return localStorage.getItem(key);
+    return SecureStore.getItemAsync(key);
+  },
+  async deleteItem(key: string) {
+    if (Platform.OS === 'web') { localStorage.removeItem(key); return; }
+    await SecureStore.deleteItemAsync(key);
+  },
+};
 
 export const TOKEN_KEYS = {
   ACCESS: 'presensiv2_access_token',
@@ -54,8 +71,8 @@ export function setInitialized(isAuthenticated: boolean): void {
 
 export async function persistTokens(tokens: TokenResponse): Promise<void> {
   await Promise.all([
-    SecureStore.setItemAsync(TOKEN_KEYS.ACCESS, tokens.access_token),
-    SecureStore.setItemAsync(TOKEN_KEYS.REFRESH, tokens.refresh_token),
+    storage.setItem(TOKEN_KEYS.ACCESS, tokens.access_token),
+    storage.setItem(TOKEN_KEYS.REFRESH, tokens.refresh_token),
   ]);
 }
 
@@ -64,8 +81,8 @@ export async function getStoredTokens(): Promise<{
   refresh: string | null;
 }> {
   const [access, refresh] = await Promise.all([
-    SecureStore.getItemAsync(TOKEN_KEYS.ACCESS),
-    SecureStore.getItemAsync(TOKEN_KEYS.REFRESH),
+    storage.getItem(TOKEN_KEYS.ACCESS),
+    storage.getItem(TOKEN_KEYS.REFRESH),
   ]);
   return { access, refresh };
 }
@@ -74,8 +91,8 @@ export async function clearTokens(): Promise<void> {
   const stack = new Error('clearTokens called').stack ?? '(no stack)';
   console.log('[authStore] clearTokens() —', stack);
   await Promise.all([
-    SecureStore.deleteItemAsync(TOKEN_KEYS.ACCESS),
-    SecureStore.deleteItemAsync(TOKEN_KEYS.REFRESH),
+    storage.deleteItem(TOKEN_KEYS.ACCESS),
+    storage.deleteItem(TOKEN_KEYS.REFRESH),
   ]);
   state = {
     user: null,

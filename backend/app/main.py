@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.core.config import settings
-from app.routers import attendance, auth, face, overtime, shifts, sites, users
+from app.routers import assignments, attendance, auth, face, overtime, shifts, sites, users
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -110,7 +110,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -135,6 +135,7 @@ app.include_router(shifts.router)
 app.include_router(face.router)
 app.include_router(attendance.router)
 app.include_router(overtime.router)
+app.include_router(assignments.router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

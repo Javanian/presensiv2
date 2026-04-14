@@ -35,6 +35,7 @@ class AttendanceRepository:
                 selectinload(Attendance.shift).selectinload(Shift.work_schedules),
                 selectinload(Attendance.user),
                 selectinload(Attendance.site),
+                selectinload(Attendance.overtime_requests),
             )
         )
 

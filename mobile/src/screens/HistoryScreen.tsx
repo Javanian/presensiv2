@@ -11,6 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { MainTabParamList } from '../navigation/MainNavigator';
 
 import { useAttendanceHistory } from '../hooks/useAttendance';
 import { getAuthState } from '../store/authStore';
@@ -45,6 +48,7 @@ function formatDuration(minutes: number): string {
 function getStatusColor(status: AttendanceRecord['status']): string {
   switch (status) {
     case 'ONTIME':        return '#16A34A';
+    case 'EARLY':         return '#2563EB';
     case 'LATE':          return '#D97706';
     case 'OUT_OF_RADIUS': return '#DC2626';
     default:              return '#9CA3AF';
@@ -54,6 +58,7 @@ function getStatusColor(status: AttendanceRecord['status']): string {
 function getStatusLabel(status: AttendanceRecord['status']): string {
   switch (status) {
     case 'ONTIME':        return 'Tepat Waktu';
+    case 'EARLY':         return 'Lebih Awal';
     case 'LATE':          return 'Terlambat';
     case 'OUT_OF_RADIUS': return 'Luar Area';
     default:              return '-';
@@ -66,9 +71,21 @@ function todayFilename(): string {
 
 // ── AttendanceCard ────────────────────────────────────────────────────────────
 
-function AttendanceCard({ record }: { record: AttendanceRecord }) {
+function AttendanceCard({
+  record,
+  onAjukanOvertime,
+}: {
+  record: AttendanceRecord;
+  onAjukanOvertime: (attendanceId: number) => void;
+}) {
   const statusColor = getStatusColor(record.status);
   const tz = record.site_timezone ?? 'Asia/Jakarta';
+
+  const showAjukanBtn =
+    record.overtime_minutes > 0 &&
+    record.overtime_request_status === 'PENDING';
+  const otApproved = record.overtime_request_status === 'APPROVED';
+  const otRejected = record.overtime_request_status === 'REJECTED';
 
   return (
     <View style={styles.card}>
@@ -119,6 +136,30 @@ function AttendanceCard({ record }: { record: AttendanceRecord }) {
           </Text>
         </View>
       )}
+
+      {/* Row 4: overtime request action / status */}
+      {showAjukanBtn && (
+        <TouchableOpacity
+          style={styles.ajukanOtBtn}
+          onPress={() => onAjukanOvertime(record.id)}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="document-text-outline" size={14} color="#FFFFFF" />
+          <Text style={styles.ajukanOtBtnText}>Ajukan Overtime</Text>
+        </TouchableOpacity>
+      )}
+      {otApproved && !showAjukanBtn && record.overtime_minutes > 0 && (
+        <View style={styles.otStatusBadge}>
+          <Ionicons name="checkmark-circle-outline" size={13} color="#16A34A" />
+          <Text style={[styles.otStatusText, { color: '#16A34A' }]}>Overtime Disetujui</Text>
+        </View>
+      )}
+      {otRejected && !showAjukanBtn && record.overtime_minutes > 0 && (
+        <View style={styles.otStatusBadge}>
+          <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
+          <Text style={[styles.otStatusText, { color: '#DC2626' }]}>Overtime Ditolak</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -128,6 +169,11 @@ function AttendanceCard({ record }: { record: AttendanceRecord }) {
 export default function HistoryScreen() {
   const { user } = getAuthState();
   const siteTimezone = user?.site_timezone ?? 'Asia/Jakarta';
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+
+  function handleAjukanOvertime(attendanceId: number) {
+    navigation.navigate('Overtime', { from: 'history', attendance_id: attendanceId });
+  }
 
   const [fromDate, setFromDate] = useState<string | null>(null);
   const [toDate, setToDate] = useState<string | null>(null);
@@ -263,7 +309,9 @@ export default function HistoryScreen() {
         <FlatList
           data={records}
           keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => <AttendanceCard record={item} />}
+          renderItem={({ item }) => (
+            <AttendanceCard record={item} onAjukanOvertime={handleAjukanOvertime} />
+          )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -358,6 +406,19 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3,
   },
   overtimeBadgeText: { fontSize: 11, fontWeight: '600', color: '#D97706' },
+  ajukanOtBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: '#2563EB', borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 8, marginTop: 4,
+  },
+  ajukanOtBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
+  otStatusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignSelf: 'flex-start', marginTop: 4,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 8, backgroundColor: '#F9FAFB',
+  },
+  otStatusText: { fontSize: 12, fontWeight: '600' },
 
   // States
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },

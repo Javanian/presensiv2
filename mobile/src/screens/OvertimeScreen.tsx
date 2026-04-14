@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { isAxiosError } from 'axios';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
 import { useMe } from '../hooks/useAuth';
 import {
@@ -27,6 +28,7 @@ import {
 import OfflineBanner from '../components/OfflineBanner';
 import { Calendar, DatePickerModal, fmtDateShort, getTodayStr } from '../components/DateRangePicker';
 import type { OvertimeRequest } from '../types/overtime';
+import type { MainTabParamList } from '../navigation/MainNavigator';
 
 // ── Date / Time Helpers ───────────────────────────────────────────────────────
 
@@ -930,7 +932,9 @@ interface TeamSection {
 
 type Tab = 'my' | 'team';
 
-export default function OvertimeScreen() {
+type OvertimeScreenProps = BottomTabScreenProps<MainTabParamList, 'Overtime'>;
+
+export default function OvertimeScreen({ route }: OvertimeScreenProps) {
   const { data: me } = useMe();
   const tz = me?.site_timezone ?? 'Asia/Jakarta';
   const isSupervisorOrAdmin = me?.role === 'SUPERVISOR' || me?.role === 'ADMIN';
@@ -956,6 +960,14 @@ export default function OvertimeScreen() {
   const teamQuery = useTeamOvertimes(teamStatus, isSupervisorOrAdmin);
 
   const activeQuery = activeTab === 'my' ? myQuery : teamQuery;
+
+  // When navigated from HistoryScreen, switch to 'my' tab and show PENDING requests
+  useEffect(() => {
+    if (route?.params?.from === 'history') {
+      setActiveTab('my');
+      setMyStatus('PENDING');
+    }
+  }, [route?.params?.from, route?.params?.attendance_id]);
 
   // Reset expanded groups when team data refreshes
   const prevTeamData = useRef<OvertimeRequest[] | undefined>(undefined);

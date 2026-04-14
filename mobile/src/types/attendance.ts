@@ -12,9 +12,11 @@ export interface AttendanceRecord {
   overtime_minutes: number;
   is_weekend: boolean;
   is_holiday: boolean;
-  status: 'ONTIME' | 'LATE' | 'OUT_OF_RADIUS' | null;
+  status: 'ONTIME' | 'LATE' | 'OUT_OF_RADIUS' | 'EARLY' | null;
   created_at: string;
   site_timezone: string;
+  overtime_request_id: number | null;
+  overtime_request_status: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
 }
 
 export interface TeamAttendanceRecord {

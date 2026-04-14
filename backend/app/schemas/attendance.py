@@ -32,6 +32,9 @@ class AttendanceResponse(BaseModel):
     status: Optional[str]
     created_at: datetime
     site_timezone: str = "Asia/Jakarta"
+    # Populated from linked overtime_requests (latest non-REJECTED, or latest overall)
+    overtime_request_id: Optional[int] = None
+    overtime_request_status: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -41,6 +44,7 @@ class TeamAttendanceRecord(BaseModel):
     user_id: int
     employee_id: str
     employee_name: str
+    site_name: Optional[str]
     checkin_time: datetime
     checkout_time: Optional[datetime]
     work_duration_minutes: int
@@ -60,6 +64,7 @@ class TeamAttendanceRecord(BaseModel):
             user_id=att.user_id,
             employee_id=att.user.employee_id,
             employee_name=att.user.name,
+            site_name=att.site.name if att.site else None,
             checkin_time=att.checkin_time,
             checkout_time=att.checkout_time,
             work_duration_minutes=att.work_duration_minutes,

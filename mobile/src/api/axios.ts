@@ -3,8 +3,7 @@ import axios, {
   InternalAxiosRequestConfig,
   isAxiosError,
 } from 'axios';
-import * as SecureStore from 'expo-secure-store';
-import { TOKEN_KEYS, clearTokens, persistTokens } from '../store/authStore';
+import { TOKEN_KEYS, clearTokens, persistTokens, getStoredTokens } from '../store/authStore';
 import { TokenResponse } from '../types/auth';
 import { showError } from '../utils/toast';
 
@@ -20,7 +19,7 @@ export const apiClient = axios.create({
 
 
 apiClient.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync(TOKEN_KEYS.ACCESS);
+  const { access: token } = await getStoredTokens();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -85,9 +84,9 @@ apiClient.interceptors.response.use(
     setIsRefreshing(true, `401 on ${originalRequest.url ?? 'unknown'}`);
 
     try {
-      const refreshToken = await SecureStore.getItemAsync(TOKEN_KEYS.REFRESH);
+      const { refresh: refreshToken } = await getStoredTokens();
       console.log(
-        `[axios] refresh token from SecureStore: ${refreshToken ? refreshToken.slice(0, 10) + '…' : 'null'}`
+        `[axios] refresh token from storage: ${refreshToken ? refreshToken.slice(0, 10) + '…' : 'null'}`
       );
       if (!refreshToken) {
         throw new Error('No refresh token available');

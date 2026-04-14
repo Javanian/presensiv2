@@ -5,6 +5,7 @@ export interface TeamAttendanceRecord {
   user_id: number
   employee_id: string
   employee_name: string
+  site_name: string | null
   checkin_time: string        // UTC ISO 8601
   checkout_time: string | null
   work_duration_minutes: number

@@ -100,6 +100,29 @@ def _get_tolerance(shift, db_dow: int) -> int:
     return 0
 
 
+def _find_upcoming_shift(shifts, now: datetime, early_hours: int = 2):
+    """
+    Return the first Shift whose start_time is within the next `early_hours` hours
+    but has not started yet, considering today's work_schedule.
+
+    Used to allow early check-in up to 2 hours before shift start.
+    """
+    today_db_dow = _python_weekday_to_db(now.weekday())
+
+    for shift in shifts:
+        days = {ws.day_of_week for ws in shift.work_schedules}
+        if today_db_dow not in days:
+            continue
+
+        shift_start_dt = datetime.combine(now.date(), shift.start_time, tzinfo=now.tzinfo)
+        early_window_start = shift_start_dt - timedelta(hours=early_hours)
+
+        if early_window_start <= now < shift_start_dt:
+            return shift
+
+    return None
+
+
 def _determine_status(
     checkin_now: datetime,
     shift,
@@ -144,6 +167,16 @@ def _attendance_response(att, site_tz: Optional[str] = None) -> AttendanceRespon
     """Build AttendanceResponse and set site_timezone from site relationship or fallback."""
     r = AttendanceResponse.model_validate(att)
     r.site_timezone = site_tz or (att.site.timezone if att.site else "Asia/Jakarta")
+    # Populate overtime_request fields from the latest linked OT request
+    if att.overtime_requests:
+        # Prefer PENDING (user needs to act), then APPROVED, then REJECTED
+        status_priority = {"PENDING": 0, "APPROVED": 1, "REJECTED": 2}
+        latest = min(
+            att.overtime_requests,
+            key=lambda x: (status_priority.get(x.status, 3), -x.id),
+        )
+        r.overtime_request_id = latest.id
+        r.overtime_request_status = latest.status
     return r
 
 
@@ -177,6 +210,23 @@ class AttendanceService:
         # 2. Get current time in site's local timezone
         now = _now_site(site.timezone)
 
+        # 2b. Check for a temporary assignment — overrides site and shift
+        from app.repositories.assignment_repository import AssignmentRepository
+        _assignment = await AssignmentRepository(self.db).get_active_for_user(
+            current_user.id, now.date()
+        )
+        _prefetched_shift = None
+        if _assignment:
+            _override_site = await self.site_repo.get_by_id(_assignment.site_id)
+            if _override_site:
+                site = _override_site
+                now = _now_site(site.timezone)
+                # Pre-load the assigned shift from the override site
+                _all_shifts = await self.shift_repo.get_all(site_id=site.id)
+                _prefetched_shift = next(
+                    (s for s in _all_shifts if s.id == _assignment.shift_id), None
+                )
+
         # 3. Prevent double check-in (same site-local calendar day)
         existing = await self.repo.get_today_checkin(current_user.id, now.date(), site.timezone)
         if existing:
@@ -192,9 +242,18 @@ class AttendanceService:
         )
         in_radius = distance_m <= site.radius_meter
 
-        # 5. Find active shift
-        shifts = await self.shift_repo.get_all(site_id=site.id)
-        active_shift = _find_active_shift(shifts, now)
+        # 5. Find active shift (use pre-fetched shift from temporary assignment if available)
+        is_early_checkin = False
+        if _prefetched_shift is not None:
+            active_shift = _prefetched_shift
+        else:
+            shifts = await self.shift_repo.get_all(site_id=site.id)
+            active_shift = _find_active_shift(shifts, now)
+            if active_shift is None:
+                # Try early check-in: allow up to 2 hours before shift start
+                active_shift = _find_upcoming_shift(shifts, now)
+                if active_shift is not None:
+                    is_early_checkin = True
 
         checkin_utc = now.astimezone(utc)
 
@@ -230,7 +289,10 @@ class AttendanceService:
             return _attendance_response(att, site.timezone)
 
         # 6. Determine status
-        att_status = _determine_status(now, active_shift, in_radius)
+        if is_early_checkin:
+            att_status = "EARLY" if in_radius else "OUT_OF_RADIUS"
+        else:
+            att_status = _determine_status(now, active_shift, in_radius)
 
         # 7. Weekend / holiday flags (using site-local date/weekday)
         today_db_dow = _python_weekday_to_db(now.weekday())
@@ -272,6 +334,35 @@ class AttendanceService:
         # Weekend / holiday → all hours are overtime automatically (no approval needed)
         overtime_min = work_min if (att.is_weekend or att.is_holiday) else 0
 
+        # ── Overtime auto-detection for regular weekday shifts ─────────────────
+        if att.shift is not None and not (att.is_weekend or att.is_holiday):
+            checkin_local = att.checkin_time.astimezone(ZoneInfo(site_tz))
+            if att.shift.is_cross_midnight:
+                shift_end_local = datetime.combine(
+                    checkin_local.date() + timedelta(days=1),
+                    att.shift.end_time,
+                    tzinfo=ZoneInfo(site_tz),
+                )
+            else:
+                shift_end_local = datetime.combine(
+                    checkin_local.date(),
+                    att.shift.end_time,
+                    tzinfo=ZoneInfo(site_tz),
+                )
+            shift_end_utc = shift_end_local.astimezone(utc)
+
+            if checkout_utc > shift_end_utc:
+                overtime_min = max(0, int((checkout_utc - shift_end_utc).total_seconds() / 60))
+                # Auto-create a PENDING overtime_request if none exists yet
+                existing_ot = await self.ot_repo.get_active_for_attendance(att.id)
+                if existing_ot is None:
+                    await self.ot_repo.create(
+                        user_id=current_user.id,
+                        requested_start=shift_end_utc,
+                        requested_end=checkout_utc,
+                        attendance_id=att.id,
+                    )
+
         att = await self.repo.checkout(
             att,
             checkout_time=checkout_utc,
@@ -279,6 +370,8 @@ class AttendanceService:
             auto_checkout=False,
             overtime_minutes=overtime_min,
         )
+        # Re-fetch with full relationships (including overtime_requests) after commit
+        att = await self.repo.get_by_id(att.id)
         return _attendance_response(att, site_tz)
 
     # ── Auto-checkout (background worker) ────────────────────────────────────
@@ -286,15 +379,53 @@ class AttendanceService:
     async def run_auto_checkout(self) -> int:
         """
         Checkout all open attendance records whose shift end time has passed.
+        Also applies a 16-hour safety fallback: any open record older than 16 hours
+        is auto-checked-out at the shift end time (or check-in + 16h if no shift).
         Called by the background asyncio task every 60 s.
         Returns the count of records processed.
         """
         open_records = await self.repo.get_open_attendances()
         processed = 0
+        now_utc = datetime.now(utc)
 
         for att in open_records:
             site_tz = att.site.timezone if att.site else "Asia/Jakarta"
             now_site = _now_site(site_tz)
+
+            # ── 16-hour safety fallback ────────────────────────────────────────
+            # If more than 16 hours have elapsed since check-in, force checkout
+            # at the shift end time regardless of other conditions.
+            hours_since_checkin = (now_utc - att.checkin_time).total_seconds() / 3600
+            if hours_since_checkin >= 16:
+                checkin_local = att.checkin_time.astimezone(ZoneInfo(site_tz))
+                checkin_local_date: date = checkin_local.date()
+                if att.shift is not None:
+                    if att.shift.is_cross_midnight:
+                        fallback_end_local = datetime.combine(
+                            checkin_local_date + timedelta(days=1),
+                            att.shift.end_time,
+                            tzinfo=ZoneInfo(site_tz),
+                        )
+                    else:
+                        fallback_end_local = datetime.combine(
+                            checkin_local_date,
+                            att.shift.end_time,
+                            tzinfo=ZoneInfo(site_tz),
+                        )
+                    fallback_end_utc = fallback_end_local.astimezone(utc)
+                else:
+                    fallback_end_utc = att.checkin_time + timedelta(hours=16)
+                work_min = _work_duration(att.checkin_time, fallback_end_utc)
+                overtime_min = work_min if (att.is_weekend or att.is_holiday) else 0
+                await self.repo.checkout(
+                    att,
+                    checkout_time=fallback_end_utc,
+                    work_duration_minutes=work_min,
+                    auto_checkout=True,
+                    overtime_minutes=overtime_min,
+                )
+                processed += 1
+                continue
 
             if att.shift is None:
                 # Overtime-only check-in (no regular shift): use the approved OT end time
@@ -306,7 +437,7 @@ class AttendanceService:
                 ot_end_utc = active_ot.requested_end
                 if now_site >= ot_end_utc.astimezone(ZoneInfo(site_tz)):
                     work_min = _work_duration(att.checkin_time, ot_end_utc)
-                    overtime_min = work_min if not (att.is_weekend or att.is_holiday) else work_min
+                    overtime_min = work_min
                     await self.repo.checkout(
                         att,
                         checkout_time=ot_end_utc,
@@ -319,7 +450,7 @@ class AttendanceService:
 
             # Determine the site-local date when the check-in occurred
             checkin_local = att.checkin_time.astimezone(ZoneInfo(site_tz))
-            checkin_local_date: date = checkin_local.date()
+            checkin_local_date = checkin_local.date()
 
             if att.shift.is_cross_midnight:
                 # Shift ends on the day *after* check-in (in site-local time)

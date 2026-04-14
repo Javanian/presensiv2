@@ -11,7 +11,7 @@ import { getAuthState } from '../store/authStore';
 export type MainTabParamList = {
   Home: undefined;
   History: undefined;
-  Overtime: undefined;
+  Overtime: { from?: 'history'; attendance_id?: number } | undefined;
   Team: undefined;
   Profile: undefined;
 };

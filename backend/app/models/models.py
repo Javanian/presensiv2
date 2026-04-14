@@ -177,6 +177,25 @@ class OvertimeRequest(Base):
     approver = relationship("User", foreign_keys=[approved_by])
 
 
+class TemporaryAssignment(Base):
+    __tablename__ = "temporary_assignments"
+
+    id         = Column(Integer, primary_key=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    site_id    = Column(Integer, ForeignKey("sites.id", ondelete="CASCADE"), nullable=False)
+    shift_id   = Column(Integer, ForeignKey("shifts.id", ondelete="CASCADE"), nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date   = Column(Date, nullable=False)
+    notes      = Column(Text, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user    = relationship("User", foreign_keys=[user_id])
+    site    = relationship("Site")
+    shift   = relationship("Shift")
+    creator = relationship("User", foreign_keys=[created_by])
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

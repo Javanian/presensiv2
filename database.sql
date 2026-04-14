@@ -125,3 +125,19 @@ USING ivfflat (face_embedding vector_cosine_ops)
 WITH (lists = 100);
 
 CREATE INDEX idx_users_supervisor ON users(supervisor_id);
+
+CREATE TABLE temporary_assignments (
+  id              SERIAL PRIMARY KEY,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  site_id         INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  shift_id        INTEGER NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+  start_date      DATE NOT NULL,
+  end_date        DATE NOT NULL,
+  notes           TEXT,
+  created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT chk_date_range CHECK (end_date >= start_date)
+);
+
+CREATE INDEX idx_tmp_assign_user ON temporary_assignments(user_id);
+CREATE INDEX idx_tmp_assign_date  ON temporary_assignments(start_date, end_date);

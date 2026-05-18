@@ -285,7 +285,7 @@ class AttendanceService:
                 is_holiday=is_holiday,
             )
             await self.db.commit()
-            await self.db.refresh(att)
+            att = await self.repo.get_by_id(att.id)
             return _attendance_response(att, site.timezone)
 
         # 6. Determine status
@@ -313,7 +313,7 @@ class AttendanceService:
             is_holiday=is_holiday,
         )
         await self.db.commit()
-        await self.db.refresh(att)
+        att = await self.repo.get_by_id(att.id)
         return _attendance_response(att, site.timezone)
 
     # ── Check-out ─────────────────────────────────────────────────────────────

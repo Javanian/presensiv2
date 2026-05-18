@@ -19,12 +19,23 @@ if (fs.existsSync(rootEnv)) {
   });
 }
 
+// Auto-set Metro host from EXPO_PUBLIC_API_BASE_URL if it's a specific IP
+const apiBase = process.env['EXPO_PUBLIC_API_BASE_URL'];
+if (apiBase && apiBase !== 'auto') {
+  const hostMatch = apiBase.match(/^(?:https?:\/\/)?([^\/:]+)/);
+  if (hostMatch) {
+    process.env['REACT_NATIVE_PACKAGER_HOSTNAME'] = hostMatch[1];
+    console.log(`[start.js] REACT_NATIVE_PACKAGER_HOSTNAME=${hostMatch[1]}`);
+  }
+}
+
 const args = process.argv.slice(2);
 console.log(`[start.js] npx expo ${args.join(' ')}`);
 
 const expo = spawn('npx', ['expo', ...args], {
   stdio: 'inherit',
   shell: true,
+  env: { ...process.env },
 });
 
 expo.on('close', (code) => process.exit(code));

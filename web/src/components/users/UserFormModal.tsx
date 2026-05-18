@@ -145,6 +145,7 @@ export function UserFormModal({ open, onClose, editingUser }: Props) {
                   </SelectContent>
                 </Select>
               )} />
+            </div>
 
             {watchEdit('role') === 'EMPLOYEE' && (
               <div className="space-y-1.5">
@@ -197,6 +198,7 @@ export function UserFormModal({ open, onClose, editingUser }: Props) {
                   </SelectContent>
                 </Select>
               )} />
+            </div>
 
             {watchCreate('role') === 'EMPLOYEE' && (
               <div className="space-y-1.5">

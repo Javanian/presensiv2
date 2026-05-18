@@ -1,5 +1,5 @@
 # Presensi Online SSB v2 — Setup Guide
-
+REACT_NATIVE_PACKAGER_HOSTNAME=100.90.247.46 npm start -- --clear
 Setup pertama kali. Database **otomatis dibuat** saat `docker compose up` — tidak perlu setup manual.
 
 ---

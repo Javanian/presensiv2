@@ -34,11 +34,13 @@ const ROLE_LABEL: Record<UserRole, string> = {
   ADMIN: 'Admin',
   SUPERVISOR: 'Supervisor',
   EMPLOYEE: 'Karyawan',
+  SALES: 'Sales',
 }
 
 const roleBadgeVariant = (role: UserRole) => {
   if (role === 'ADMIN') return 'admin' as const
   if (role === 'SUPERVISOR') return 'supervisor' as const
+  if (role === 'SALES') return 'sales' as const
   return 'employee' as const
 }
 
@@ -293,6 +295,7 @@ export function UsersPage() {
             <SelectItem value="ADMIN">Admin</SelectItem>
             <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
             <SelectItem value="EMPLOYEE">Karyawan</SelectItem>
+            <SelectItem value="SALES">Sales</SelectItem>
           </SelectContent>
         </Select>
         <Button variant="outline" onClick={() => void refetch()}>

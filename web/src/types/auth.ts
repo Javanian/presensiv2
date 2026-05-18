@@ -4,7 +4,7 @@ export interface TokenResponse {
   token_type: string
 }
 
-export type UserRole = 'ADMIN' | 'SUPERVISOR' | 'EMPLOYEE'
+export type UserRole = 'ADMIN' | 'SUPERVISOR' | 'EMPLOYEE' | 'SALES'
 
 // Mirrors GET /auth/me response from backend
 export interface UserInfo {

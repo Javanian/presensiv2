@@ -11,7 +11,8 @@ CREATE TABLE roles (
 INSERT INTO roles (name) VALUES
 ('ADMIN'),
 ('SUPERVISOR'),
-('EMPLOYEE');
+('EMPLOYEE'),
+('SALES');
 
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,

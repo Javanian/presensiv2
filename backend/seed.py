@@ -17,13 +17,14 @@ with the schema from database.sql already applied.
 """
 
 import asyncio
+import random
 from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import func, select, text
 
 from app.core.database import AsyncSessionLocal
 from app.core.security import get_password_hash
-from app.models.models import Attendance, Role, Shift, Site, User, WorkSchedule
+from app.models.models import Attendance, OvertimeRequest, Role, Shift, Site, User, WorkSchedule
 
 
 # ---------------------------------------------------------------------------
@@ -34,34 +35,59 @@ def _work_minutes(checkin: datetime, checkout: datetime) -> int:
     return max(0, int((checkout - checkin).total_seconds() / 60))
 
 
-# ---------------------------------------------------------------------------
-# Attendance schedule: same pattern for every employee
-# (date_offset, status, ci_h, ci_m, co_h, co_m, in_radius)
-# date_offset 0 = Jan 1 2026 (Thursday)
-# ---------------------------------------------------------------------------
-ATTENDANCE_PATTERN = [
-    # offset, status,          ci_h, ci_m, co_h, co_m, in_radius
-    (0,  "ONTIME",        7,  5,  17,  0,  True),   # Jan 1 Thu
-    (1,  "LATE",          7, 32,  17, 15,  True),   # Jan 2 Fri
-    (2,  "ONTIME",        8,  0,  16,  0,  True),   # Jan 3 Sat (weekend)
-    (3,  "ONTIME",        7, 55,  17,  0,  True),   # Jan 4 Sun (weekend)
-    (4,  "ONTIME",        6, 58,  17,  5,  True),   # Jan 5 Mon
-    (5,  "OUT_OF_RADIUS", 7, 10,  17,  0,  False),  # Jan 6 Tue
-    (6,  "ONTIME",        7,  3,  17, 30,  True),   # Jan 7 Wed
-    (7,  "LATE",          7, 45,  17,  0,  True),   # Jan 8 Thu
-    (8,  "ONTIME",        7,  0,  17,  0,  True),   # Jan 9 Fri
-    (9,  "ONTIME",        8,  0,  16, 30,  True),   # Jan 10 Sat (weekend)
-]
+BASE_DATE = date(2026, 5, 15)   # May 15 = Friday
+DAYS_TO_SEED = 4                # 15 = Fri, 16 = Sat, 17 = Sun, 18 = Mon
 
-BASE_DATE = date(2026, 1, 1)
 
-# DB day_of_week: 0=Sunday … 6=Saturday
-# Weekends: 0 (Sun) or 6 (Sat)
 def _is_weekend_db_dow(d: date) -> bool:
-    """Return True if the date falls on Saturday or Sunday."""
-    python_dow = d.weekday()   # Mon=0 … Sun=6
-    db_dow = (python_dow + 1) % 7  # Sun=0, Mon=1 … Sat=6
+    python_dow = d.weekday()
+    db_dow = (python_dow + 1) % 7
     return db_dow in {0, 6}
+
+
+def _seeded(emp_num: int, day_idx: int) -> int:
+    """Deterministic pseudo-random for employee on a given day."""
+    return (emp_num * 137 + day_idx * 251) % 1000
+
+
+def _gen_pattern(emp_num: int, day_idx: int, is_sales: bool):
+    """
+    Generate a unique attendance tuple for employee `emp_num` on `day_idx`.
+    Returns: (ci_h, ci_m, co_h, co_m, status, in_radius, overtime_min)
+    No two employees share the exact same pattern across all 4 days.
+    """
+    s = _seeded(emp_num, day_idx)
+    att_date = BASE_DATE + timedelta(days=day_idx)
+    is_weekend = _is_weekend_db_dow(att_date)
+
+    if is_weekend:
+        ci_h = 7 + (s % 4)                    # 7–10
+        ci_m = (s * 3) % 60
+        co_h = ci_h + 5 + (s % 6)             # work 5–11 h
+        co_m = (s * 7) % 60
+    else:
+        # Weekday: checkin around 06:00–07:59
+        ci_h = 6 if s < 400 else 7
+        ci_m = s % 60
+        co_h = 16 + ((s + emp_num) % 3)       # 16–18
+        co_m = (s * 11 + day_idx * 7) % 60
+
+    # Status variation
+    stat_roll = (s + day_idx * 17) % 6
+    if is_sales:
+        status_opts = ["ONTIME"] * 4 + ["LATE"] * 2
+    else:
+        status_opts = ["ONTIME"] * 2 + ["LATE"] * 2 + ["EARLY"] + ["OUT_OF_RADIUS"]
+    status = status_opts[stat_roll % len(status_opts)]
+    in_radius = status != "OUT_OF_RADIUS"
+
+    # Overtime: weekend always overtime, weekday only for some
+    if is_weekend:
+        ot = max(0, (co_h - ci_h) * 60 + co_m - ci_m)
+    else:
+        ot = max(0, (co_h - 17) * 60 + co_m) if s > 600 and co_h >= 17 else 0
+
+    return (ci_h, ci_m, co_h, co_m, status, in_radius, ot)
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +108,7 @@ async def seed():
 
         # ── 1. Roles ──────────────────────────────────────────────────────────
         print("\n[1] Seeding roles...")
-        role_names = ["ADMIN", "SUPERVISOR", "EMPLOYEE"]
+        role_names = ["ADMIN", "SUPERVISOR", "EMPLOYEE", "SALES"]
         roles: dict[str, Role] = {}
 
         for rname in role_names:
@@ -378,6 +404,42 @@ async def seed():
             emp_objects[u["employee_id"]] = emp
         await db.commit()
 
+        # ── 7b. SALES employees (no supervisor, no location restriction) ────────
+        print("\n[7b] Seeding @ptssb.co.id SALES employees...")
+        sales_data = [
+            {"employee_id": "SAL001", "name": "Dian Permata",   "email": "sal001@ptssb.co.id", "site_id": jkt.id},
+            {"employee_id": "SAL002", "name": "Rizky Aditya",   "email": "sal002@ptssb.co.id", "site_id": jkt.id},
+            {"employee_id": "SAL003", "name": "Putri Melati",   "email": "sal003@ptssb.co.id", "site_id": mks.id},
+            {"employee_id": "SAL004", "name": "Bayu Anggara",   "email": "sal004@ptssb.co.id", "site_id": mks.id},
+            {"employee_id": "SAL005", "name": "Indah Kusuma",   "email": "sal005@ptssb.co.id", "site_id": jpr.id},
+            {"employee_id": "SAL006", "name": "Adit Pratama",   "email": "sal006@ptssb.co.id", "site_id": jpr.id},
+        ]
+        sales_objects: dict[str, User] = {}
+        for u in sales_data:
+            result = await db.execute(select(User).where(User.employee_id == u["employee_id"]))
+            user = result.scalar_one_or_none()
+            if not user:
+                user = User(
+                    employee_id=u["employee_id"],
+                    name=u["name"],
+                    email=u["email"],
+                    password_hash=get_password_hash("12345"),
+                    role_id=roles["SALES"].id,
+                    site_id=u["site_id"],
+                    is_active=True,
+                )
+                db.add(user)
+                await db.flush()
+                print(f"    [+] SALES created: {u['email']}")
+            else:
+                print(f"    [=] SALES exists:  {u['email']}")
+            sales_objects[u["employee_id"]] = user
+        await db.commit()
+
+        for eid in list(sales_objects.keys()):
+            r = await db.execute(select(User).where(User.employee_id == eid))
+            sales_objects[eid] = r.scalar_one()
+
         # Re-fetch employees and assign supervisor_id
         print("\n[8] Assigning supervisor hierarchy...")
         for u in employees_data:
@@ -391,21 +453,27 @@ async def seed():
                 print(f"    [=] {u['employee_id']} already supervised by {u['spv']}")
         await db.commit()
 
-        # Re-fetch employees for attendance seeding
+        # Re-fetch employees and sales for attendance seeding
         for eid in list(emp_objects.keys()):
             r = await db.execute(select(User).where(User.employee_id == eid))
             emp_objects[eid] = r.scalar_one()
+        for eid in list(sales_objects.keys()):
+            r = await db.execute(select(User).where(User.employee_id == eid))
+            sales_objects[eid] = r.scalar_one()
 
-        # ── 9. Attendance records ─────────────────────────────────────────────
-        print("\n[9] Seeding attendance records (Jan 1–10, 2026)...")
+        # Combine all non-ADMIN users for attendance
+        all_attendance_users: list[tuple[User, bool]] = []
+        for emp in emp_objects.values():
+            all_attendance_users.append((emp, False))  # is_sales=False
+        for emp in sales_objects.values():
+            all_attendance_users.append((emp, True))   # is_sales=True
 
-        # Map site_id → site object for GPS coordinates and shift lookup
+        # ── 9. Attendance + Overtime records ───────────────────────────────────
+        print(f"\n[9] Seeding attendance records ({BASE_DATE} – {BASE_DATE + timedelta(days=DAYS_TO_SEED - 1)})...")
+
         site_map: dict[int, Site] = {
-            jkt.id: jkt,
-            mks.id: mks,
-            jpr.id: jpr,
+            jkt.id: jkt, mks.id: mks, jpr.id: jpr,
         }
-        # Map site_id → shift object
         shift_map: dict[int, Shift] = {
             jkt.id: site_shifts["SSB Jakarta"],
             mks.id: site_shifts["SSB Makassar"],
@@ -414,23 +482,35 @@ async def seed():
 
         total_inserted = 0
         total_skipped = 0
+        total_ot = 0
+        # Collect created attendances with user for overtime linking
+        created_attendances: list[tuple[Attendance, User, int]] = []  # (att, user, emp_num)
 
-        for emp in emp_objects.values():
-            site = site_map.get(emp.site_id)
-            shift = shift_map.get(emp.site_id)
+        for user, is_sales in all_attendance_users:
+            site = site_map.get(user.site_id)
+            shift = shift_map.get(user.site_id)
             if not site or not shift:
-                print(f"    [!] Skipping {emp.employee_id} — no matching site/shift")
+                print(f"    [!] Skipping {user.employee_id} — no matching site/shift")
                 continue
 
-            for offset, status, ci_h, ci_m, co_h, co_m, in_radius in ATTENDANCE_PATTERN:
-                att_date = BASE_DATE + timedelta(days=offset)
-                checkin_dt  = datetime(att_date.year, att_date.month, att_date.day, ci_h, ci_m)
+            emp_num = int(user.employee_id[3:])  # "EMP101"→101, "SAL001"→1
+            # Make SALES numbers unique from EMP: SAL001→1001, SAL002→1002, ...
+            if user.employee_id.startswith("SAL"):
+                emp_num += 1000
+
+            for day_idx in range(DAYS_TO_SEED):
+                att_date = BASE_DATE + timedelta(days=day_idx)
+                ci_h, ci_m, co_h, co_m, status, in_radius, ot_min = _gen_pattern(
+                    emp_num, day_idx, is_sales
+                )
+
+                checkin_dt = datetime(att_date.year, att_date.month, att_date.day, ci_h, ci_m)
                 checkout_dt = datetime(att_date.year, att_date.month, att_date.day, co_h, co_m)
 
-                # Check for existing record (same user, same calendar date)
+                # Skip if already exists
                 exists_result = await db.execute(
                     select(Attendance).where(
-                        Attendance.user_id == emp.id,
+                        Attendance.user_id == user.id,
                         func.date(Attendance.checkin_time) == att_date,
                     )
                 )
@@ -440,13 +520,15 @@ async def seed():
 
                 is_wknd = _is_weekend_db_dow(att_date)
                 work_min = _work_minutes(checkin_dt, checkout_dt)
-                overtime_min = work_min if is_wknd else 0
 
-                lat = site.latitude + (1.0 if not in_radius else 0.0)
-                lon = site.longitude + (1.0 if not in_radius else 0.0)
+                lat = site.latitude
+                lon = site.longitude
+                if not in_radius:
+                    lat += 2.0
+                    lon += 2.0
 
-                db.add(Attendance(
-                    user_id=emp.id,
+                att = Attendance(
+                    user_id=user.id,
                     site_id=site.id,
                     shift_id=shift.id,
                     checkin_time=checkin_dt,
@@ -455,16 +537,55 @@ async def seed():
                     latitude=lat,
                     longitude=lon,
                     work_duration_minutes=work_min,
-                    overtime_minutes=overtime_min,
+                    overtime_minutes=ot_min,
                     is_weekend=is_wknd,
                     is_holiday=False,
                     status=status,
-                ))
+                )
+                db.add(att)
+                await db.flush()
+                created_attendances.append((att, user, emp_num))
                 total_inserted += 1
 
-            await db.commit()
+        await db.commit()
+        print(f"    Attendance inserted: {total_inserted}  |  Skipped: {total_skipped}")
 
-        print(f"    Inserted: {total_inserted}  |  Skipped (already exist): {total_skipped}")
+        # ── 10. Overtime requests (varied per user) ─────────────────────────────
+        print("\n[10] Seeding overtime requests...")
+        ot_statuses = ["PENDING", "APPROVED", "REJECTED"]
+        for att, user, emp_num in created_attendances:
+            ot_min = att.overtime_minutes
+            if ot_min <= 0:
+                continue
+
+            # Determine overtime request status based on employee number and day
+            ot_roll = (_seeded(emp_num, att.checkin_time.day) + 7) % 7
+            ot_status = ot_statuses[ot_roll % 3]
+
+            # Reject only some PENDING, approve others
+            if ot_status == "REJECTED" and ot_roll < 5:
+                ot_status = "APPROVED" if ot_roll < 3 else "PENDING"
+
+            # Find an approver: use a supervisor from the same site
+            spv_for_site = next(
+                (s for s in spv_objects.values() if s.site_id == user.site_id), None
+            )
+
+            ot_req = OvertimeRequest(
+                user_id=user.id,
+                attendance_id=att.id,
+                requested_start=att.checkout_time - timedelta(minutes=ot_min),
+                requested_end=att.checkout_time,
+                approved_by=spv_for_site.id if spv_for_site else None,
+                status=ot_status,
+                notes=f"Lembur {att.checkin_time.strftime('%d/%m')} — {ot_min} menit" if ot_status == "PENDING" else None,
+                supervisor_notes="Disetujui" if ot_status == "APPROVED" else ("Ditolak" if ot_status == "REJECTED" else None),
+            )
+            db.add(ot_req)
+            total_ot += 1
+
+        await db.commit()
+        print(f"    Overtime requests created: {total_ot}")
 
     # ── Summary ───────────────────────────────────────────────────────────────
     print("\n" + "=" * 60)
@@ -474,15 +595,18 @@ async def seed():
     print("  Admin      : admin@presensiv2.local      / Admin@123")
     print("  Supervisor : supervisor@presensiv2.local  / Supervisor@123")
     print("  Employee   : karyawan@presensiv2.local    / Karyawan@123")
-    print("\nNew @ptssb.co.id credentials (password: 12345):")
+    print("\n@ptssb.co.id credentials (password: 12345):")
     print("  Supervisors: spv101 … spv105 @ptssb.co.id")
     print("  Employees  : emp101 … emp140 @ptssb.co.id (8 per supervisor)")
+    print("  SALES      : sal001 … sal006 @ptssb.co.id (2 per site, no GPS restriction)")
     print("\nSites seeded:")
     print("  Kantor Pusat  — WIB (Asia/Jakarta)")
     print("  SSB Jakarta   — WIB (Asia/Jakarta)")
     print("  SSB Makassar  — WITA (Asia/Makassar)")
     print("  SSB Jayapura  — WIT  (Asia/Jayapura)")
-    print(f"\nAttendance records: {total_inserted} inserted (Jan 1–10, 2026)")
+    print(f"\nAttendance records: {total_inserted} (May 15–18, 2026)")
+    print(f"Overtime records  : {total_ot}")
+    print("   Pattern: setiap user UNIK — tidak ada yang sama")
 
 
 if __name__ == "__main__":

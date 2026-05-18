@@ -22,7 +22,7 @@ const createSchema = z.object({
   name: z.string().min(1, 'Nama wajib diisi'),
   email: z.string().email('Format email tidak valid'),
   password: z.string().min(8, 'Password minimal 8 karakter'),
-  role: z.enum(['ADMIN', 'SUPERVISOR', 'EMPLOYEE']),
+  role: z.enum(['ADMIN', 'SUPERVISOR', 'EMPLOYEE', 'SALES']),
   site_id: z.number().nullable(),
   supervisor_id: z.number().nullable(),
 })
@@ -30,7 +30,7 @@ const createSchema = z.object({
 const editSchema = z.object({
   name: z.string().min(1, 'Nama wajib diisi'),
   email: z.string().email('Format email tidak valid'),
-  role: z.enum(['ADMIN', 'SUPERVISOR', 'EMPLOYEE']),
+  role: z.enum(['ADMIN', 'SUPERVISOR', 'EMPLOYEE', 'SALES']),
   site_id: z.number().nullable(),
   supervisor_id: z.number().nullable(),
   is_active: z.boolean(),
@@ -141,25 +141,11 @@ export function UserFormModal({ open, onClose, editingUser }: Props) {
                     <SelectItem value="ADMIN">Admin</SelectItem>
                     <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
                     <SelectItem value="EMPLOYEE">Karyawan</SelectItem>
+                    <SelectItem value="SALES">Sales</SelectItem>
                   </SelectContent>
                 </Select>
               )} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Lokasi Kerja</Label>
-              <Controller control={controlEdit} name="site_id" render={({ field }) => (
-                <Select
-                  value={field.value != null ? field.value.toString() : '__none__'}
-                  onValueChange={(v) => field.onChange(v === '__none__' ? null : parseInt(v))}
-                >
-                  <SelectTrigger><SelectValue placeholder="Pilih lokasi" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Tanpa Lokasi —</SelectItem>
-                    {sites.map((s) => <SelectItem key={s.id} value={s.id?.toString() ?? 'unknown'}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )} />
-            </div>
+
             {watchEdit('role') === 'EMPLOYEE' && (
               <div className="space-y-1.5">
                 <Label>Supervisor</Label>
@@ -207,25 +193,11 @@ export function UserFormModal({ open, onClose, editingUser }: Props) {
                     <SelectItem value="ADMIN">Admin</SelectItem>
                     <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
                     <SelectItem value="EMPLOYEE">Karyawan</SelectItem>
+                    <SelectItem value="SALES">Sales</SelectItem>
                   </SelectContent>
                 </Select>
               )} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Lokasi Kerja</Label>
-              <Controller control={controlCreate} name="site_id" render={({ field }) => (
-                <Select
-                  value={field.value != null ? field.value.toString() : '__none__'}
-                  onValueChange={(v) => field.onChange(v === '__none__' ? null : parseInt(v))}
-                >
-                  <SelectTrigger><SelectValue placeholder="Pilih lokasi" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Tanpa Lokasi —</SelectItem>
-                    {sites.map((s) => <SelectItem key={s.id} value={s.id?.toString() ?? 'unknown'}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )} />
-            </div>
+
             {watchCreate('role') === 'EMPLOYEE' && (
               <div className="space-y-1.5">
                 <Label>Supervisor</Label>

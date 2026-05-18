@@ -242,6 +242,10 @@ class AttendanceService:
         )
         in_radius = distance_m <= site.radius_meter
 
+        # SALES role: always treated as within radius (no location restriction)
+        if current_user.role.name == "SALES":
+            in_radius = True
+
         # 5. Find active shift (use pre-fetched shift from temporary assignment if available)
         is_early_checkin = False
         if _prefetched_shift is not None:

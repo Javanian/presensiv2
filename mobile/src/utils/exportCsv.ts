@@ -13,13 +13,6 @@
  * (important for Indonesian characters).
  */
 
-import {
-  documentDirectory,
-  writeAsStringAsync,
-  EncodingType,
-  StorageAccessFramework,
-} from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
 function escapeCsvCell(value: unknown): string {
@@ -37,9 +30,16 @@ function buildCsvString(rows: unknown[][]): string {
 }
 
 export async function exportCsv(rows: unknown[][], filename: string): Promise<void> {
+  const [
+    { documentDirectory, writeAsStringAsync, EncodingType, StorageAccessFramework },
+    Sharing,
+  ] = await Promise.all([
+    import('expo-file-system/legacy'),
+    import('expo-sharing'),
+  ]);
+
   const csv = '\uFEFF' + buildCsvString(rows);
 
-  // Use documentDirectory — it is always exposed by the FileProvider on Android
   const dir = documentDirectory ?? '';
   const uri = `${dir}${filename}`;
 
@@ -56,7 +56,6 @@ export async function exportCsv(rows: unknown[][], filename: string): Promise<vo
     return;
   }
 
-  // Fallback (Android only): SAF — let user pick a folder to save into
   if (Platform.OS === 'android') {
     const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
     if (!permissions.granted) {

@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTodayAttendance } from '../hooks/useAttendance';
-import { getAuthState } from '../store/authStore';
+import { useAuthState } from '../store/authStore';
 import { AttendanceRecord } from '../types/attendance';
 import CheckinModal from '../components/CheckinModal';
 import CheckoutModal from '../components/CheckoutModal';
@@ -20,16 +20,30 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatTime(iso: string, tz: string): string {
+const VALID_TIMEZONES = new Set(['Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura']);
+
+function getSafeTimezone(tz: string | null | undefined): string {
+  return tz && VALID_TIMEZONES.has(tz) ? tz : 'Asia/Jakarta';
+}
+
+function isValidIsoDate(iso: string | null | undefined): iso is string {
+  if (!iso) return false;
+  return Number.isFinite(new Date(iso).getTime());
+}
+
+function formatTime(iso: string | null | undefined, tz: string | null | undefined): string {
+  if (!isValidIsoDate(iso)) return '-';
+
   return new Intl.DateTimeFormat('id-ID', {
-    timeZone: tz,
+    timeZone: getSafeTimezone(tz),
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   }).format(new Date(iso));
 }
 
-function formatDuration(minutes: number): string {
+function formatDuration(minutes: number | null | undefined): string {
+  if (!Number.isFinite(minutes) || minutes == null || minutes < 0) return '-';
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   if (h === 0) return `${m}m`;
@@ -94,7 +108,7 @@ function StatusCard({
     );
   }
 
-  if (record.checkout_time === null) {
+  if (!isValidIsoDate(record.checkout_time)) {
     // Checked in, not yet checked out
     return (
       <View style={[styles.card, styles.cardGreen]}>
@@ -137,8 +151,8 @@ function StatusCard({
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const { user } = getAuthState();
-  const siteTimezone = user?.site_timezone ?? 'Asia/Jakarta';
+  const { user } = useAuthState();
+  const siteTimezone = getSafeTimezone(user?.site_timezone);
   const { data: todayRecord, isLoading, isError, refetch, isRefetching } = useTodayAttendance(siteTimezone);
   const { isConnected } = useNetworkStatus();
   const [checkinVisible, setCheckinVisible] = useState(false);
@@ -147,12 +161,12 @@ export default function HomeScreen() {
   const isCompleted =
     todayRecord !== null &&
     todayRecord !== undefined &&
-    todayRecord.checkout_time !== null;
+    isValidIsoDate(todayRecord.checkout_time);
 
   const isCheckedIn =
     todayRecord !== null &&
     todayRecord !== undefined &&
-    todayRecord.checkout_time === null;
+    !isValidIsoDate(todayRecord.checkout_time);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

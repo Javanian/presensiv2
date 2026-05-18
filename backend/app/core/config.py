@@ -5,7 +5,8 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://presensiv2:presensiv2pass@localhost:5432/presensiv2"
+    DATABASE_URL: str = "postgresql+asyncpg://presensiv2:presensiv2pass@localhost:5432/ptssb"
+    DB_SCHEMA: str = "hris_ssb"
 
     # JWT
     SECRET_KEY: str = "change-this-secret-key-in-production-min-32-chars"
@@ -15,6 +16,15 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: str = '["http://localhost:3000", "http://localhost:8000", "http://localhost:8080"]'
+    CORS_ORIGIN_REGEX: str = (
+        r"^https?://("
+        r"localhost|127\.0\.0\.1|"
+        r"10\.\d+\.\d+\.\d+|"
+        r"192\.168\.\d+\.\d+|"
+        r"172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+|"
+        r"100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+"
+        r")(:\d+)?$"
+    )
 
     # Login security
     MAX_LOGIN_ATTEMPTS: int = 5

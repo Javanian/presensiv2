@@ -16,7 +16,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../navigation/MainNavigator';
 
 import { useAttendanceHistory } from '../hooks/useAttendance';
-import { getAuthState } from '../store/authStore';
+import { useAuthState } from '../store/authStore';
 import { AttendanceRecord } from '../types/attendance';
 import OfflineBanner from '../components/OfflineBanner';
 import { DateRangeBar, fmtDateShort } from '../components/DateRangePicker';
@@ -167,7 +167,7 @@ function AttendanceCard({
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function HistoryScreen() {
-  const { user } = getAuthState();
+  const { user } = useAuthState();
   const siteTimezone = user?.site_timezone ?? 'Asia/Jakarta';
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
 

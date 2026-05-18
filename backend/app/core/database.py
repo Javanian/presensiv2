@@ -10,6 +10,11 @@ engine = create_async_engine(
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
+    connect_args={
+        "server_settings": {
+            "search_path": f"{settings.DB_SCHEMA},public",
+        }
+    },
 )
 
 # Register pgvector type for asyncpg connections

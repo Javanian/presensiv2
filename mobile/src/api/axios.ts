@@ -3,12 +3,55 @@ import axios, {
   InternalAxiosRequestConfig,
   isAxiosError,
 } from 'axios';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { TOKEN_KEYS, clearTokens, persistTokens, getStoredTokens } from '../store/authStore';
 import { TokenResponse } from '../types/auth';
 import { showError } from '../utils/toast';
 
-export const BASE_URL = process.env['EXPO_PUBLIC_API_BASE_URL'] ?? 'http://10.0.2.2:8000';
+const API_BASE_OVERRIDE = process.env['EXPO_PUBLIC_API_BASE_URL']?.trim();
+const API_PORT = process.env['EXPO_PUBLIC_API_PORT']?.trim() || '8000';
 const TIMEOUT = Number(process.env['EXPO_PUBLIC_API_TIMEOUT'] ?? 10000);
+
+function getExpoHost(): string | null {
+  const constants = Constants as unknown as {
+    expoConfig?: { hostUri?: string };
+    manifest?: { debuggerHost?: string; hostUri?: string };
+    manifest2?: {
+      extra?: {
+        expoClient?: { hostUri?: string };
+        expoGo?: { debuggerHost?: string };
+      };
+    };
+  };
+
+  const hostUri =
+    constants.expoConfig?.hostUri ??
+    constants.manifest2?.extra?.expoClient?.hostUri ??
+    constants.manifest2?.extra?.expoGo?.debuggerHost ??
+    constants.manifest?.debuggerHost ??
+    constants.manifest?.hostUri;
+
+  if (!hostUri) return null;
+  const hostWithPort = hostUri.replace(/^https?:\/\//, '').split('/')[0];
+  return hostWithPort?.split(':')[0] || null;
+}
+
+function resolveBaseUrl(): string {
+  if (API_BASE_OVERRIDE && API_BASE_OVERRIDE.toLowerCase() !== 'auto') {
+    const raw = API_BASE_OVERRIDE.replace(/\/+$/, '');
+    if (/^https?:\/\//i.test(raw)) return raw;
+    return `http://${raw}:${API_PORT}`;
+  }
+
+  const expoHost = getExpoHost();
+  if (expoHost) return `http://${expoHost}:${API_PORT}`;
+
+  if (Platform.OS === 'android') return `http://10.0.2.2:${API_PORT}`;
+  return `http://localhost:${API_PORT}`;
+}
+
+export const BASE_URL = resolveBaseUrl();
 console.log('[axios] AXIOS INTERCEPTOR LOADED — BASE_URL:', BASE_URL);
 
 export const apiClient = axios.create({

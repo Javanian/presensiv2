@@ -1,5 +1,8 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
+CREATE SCHEMA IF NOT EXISTS hris_ssb;
+SET search_path TO hris_ssb, public;
+
 CREATE TABLE roles (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) UNIQUE NOT NULL

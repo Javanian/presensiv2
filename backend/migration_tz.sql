@@ -8,6 +8,9 @@
 --   3. Drops the unique_daily_checkin DB index (duplicate checking moves to service layer)
 --   4. Sets correct timezone for non-Jakarta sites
 
+CREATE SCHEMA IF NOT EXISTS hris_ssb;
+SET search_path TO hris_ssb, public;
+
 -- Step 1: Add timezone column to sites
 ALTER TABLE sites
   ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) NOT NULL DEFAULT 'Asia/Jakarta';

@@ -4,6 +4,11 @@ import path from 'path'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const apiBase = env.VITE_API_BASE_URL || '/api'
+  const proxyTarget =
+    env.VITE_API_PROXY_TARGET ||
+    (apiBase.startsWith('http') ? apiBase : 'http://localhost:8000')
+
   return {
     plugins: [react()],
     resolve: {
@@ -14,7 +19,7 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': {
-          target: env.VITE_API_BASE_URL || 'http://localhost:8000',
+          target: proxyTarget,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ''),
         },

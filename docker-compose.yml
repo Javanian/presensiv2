@@ -4,16 +4,16 @@ services:
     container_name: presensiv2_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: presensiv2
-      POSTGRES_PASSWORD: presensiv2pass
-      POSTGRES_DB: presensiv2
+      POSTGRES_USER: ${DB_USER:-presensiv2}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-presensiv2pass}
+      POSTGRES_DB: ${DB_NAME:-ptssb}
     ports:
-      - "5433:5432"
+      - "${DB_HOST_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./database.sql:/docker-entrypoint-initdb.d/01_schema.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U presensiv2 -d presensiv2"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-presensiv2} -d ${DB_NAME:-ptssb}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,16 +23,18 @@ services:
     container_name: presensiv2_backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     env_file:
       - ./backend/.env
     environment:
-      - CORS_ORIGINS=["http://localhost:3000","http://localhost:5173","http://localhost:8080","http://localhost:8000","http://100.85.26.99:8000","http://100.85.26.99:5173","http://100.85.26.99:19000","http://100.85.26.99:8081"]
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-presensiv2}:${DB_PASSWORD:-presensiv2pass}@db:5432/${DB_NAME:-ptssb}
+      - DB_SCHEMA=${DB_SCHEMA:-hris_ssb}
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - insightface_models:/root/.insightface
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   web:
@@ -42,9 +44,10 @@ services:
     working_dir: /app
     command: sh -c "npm install && npm run dev -- --host"
     ports:
-      - "5173:5173"
+      - "${WEB_PORT:-5173}:5173"
     environment:
-      - VITE_API_BASE_URL=http://100.85.26.99:8000
+      - VITE_API_BASE_URL=${WEB_API_BASE_URL:-/api}
+      - VITE_API_PROXY_TARGET=${WEB_API_PROXY_TARGET:-http://backend:8000}
       - VITE_APP_NAME=Presensi Online SSB v2
     volumes:
       - ./web:/app
@@ -59,12 +62,13 @@ services:
     network_mode: host     # share host network — Metro detects Tailscale IP directly
     command: npx expo start --lan
     environment:
-      - REACT_NATIVE_PACKAGER_HOSTNAME=100.85.26.99
-      - EXPO_PUBLIC_API_BASE_URL=http://100.85.26.99:8000
-      - EXPO_PUBLIC_API_TIMEOUT=10000
+      - EXPO_PUBLIC_API_BASE_URL=${EXPO_PUBLIC_API_BASE_URL:-auto}
+      - EXPO_PUBLIC_API_PORT=${EXPO_PUBLIC_API_PORT:-8000}
+      - EXPO_PUBLIC_API_TIMEOUT=${EXPO_PUBLIC_API_TIMEOUT:-10000}
     volumes:
       - ./mobile:/app
       - /app/node_modules   # prevent host node_modules override
 
 volumes:
   pgdata:
+  insightface_models:

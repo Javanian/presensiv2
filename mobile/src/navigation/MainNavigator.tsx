@@ -6,7 +6,7 @@ import HistoryScreen from '../screens/HistoryScreen';
 import OvertimeScreen from '../screens/OvertimeScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SubordinateAttendanceScreen from '../screens/SubordinateAttendanceScreen';
-import { getAuthState } from '../store/authStore';
+import { useAuthState } from '../store/authStore';
 
 export type MainTabParamList = {
   Home: undefined;
@@ -40,7 +40,7 @@ const TAB_LABELS: Record<keyof MainTabParamList, string> = {
 };
 
 export default function MainNavigator() {
-  const role = getAuthState().user?.role;
+  const role = useAuthState().user?.role;
   const canSeeTeam = role === 'SUPERVISOR' || role === 'ADMIN';
 
   return (

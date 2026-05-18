@@ -15,7 +15,7 @@ import { useTeamAttendance } from '../hooks/useAttendance';
 import { EmployeeSummary, TeamAttendanceRecord } from '../types/attendance';
 import OfflineBanner from '../components/OfflineBanner';
 import { DateRangeBar, fmtDateShort } from '../components/DateRangePicker';
-import { getAuthState } from '../store/authStore';
+import { useAuthState } from '../store/authStore';
 import { exportCsv } from '../utils/exportCsv';
 import { showError, showSuccess } from '../utils/toast';
 
@@ -138,7 +138,7 @@ function EmployeeCard({
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubordinateAttendanceScreen() {
-  const { user } = getAuthState();
+  const { user } = useAuthState();
   const siteTimezone = user?.site_timezone ?? 'Asia/Jakarta';
 
   const [fromDate, setFromDate] = useState<string | null>(null);

@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 import { TokenResponse, UserInfo } from '../types/auth';
 
@@ -46,9 +47,17 @@ export function getAuthState(): AuthState {
   return { ...state };
 }
 
+function getAuthSnapshot(): AuthState {
+  return state;
+}
+
 export function subscribeToAuthState(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+export function useAuthState(): AuthState {
+  return useSyncExternalStore(subscribeToAuthState, getAuthSnapshot, getAuthSnapshot);
 }
 
 export function setAuthUser(user: UserInfo | null): void {
@@ -63,7 +72,7 @@ export function setAuthUser(user: UserInfo | null): void {
 export function setInitialized(isAuthenticated: boolean): void {
   state = {
     ...state,
-    isAuthenticated,
+    isAuthenticated: isAuthenticated && state.user !== null,
     isInitialized: true,
   };
   notify();

@@ -2,6 +2,9 @@
 -- Run on existing databases:
 --   docker exec presensiv2_backend psql $DATABASE_URL -f migration_penugasan.sql
 
+CREATE SCHEMA IF NOT EXISTS hris_ssb;
+SET search_path TO hris_ssb, public;
+
 CREATE TABLE IF NOT EXISTS temporary_assignments (
   id              SERIAL PRIMARY KEY,
   user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

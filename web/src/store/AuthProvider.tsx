@@ -8,7 +8,7 @@ import {
 } from './authStore'
 import type { UserInfo, TokenResponse } from '@/types/auth'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null)

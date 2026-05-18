@@ -10,7 +10,7 @@
 
 - **Backend:** FastAPI REST API (Python 3.11)
 - **Mobile client:** React Native (Expo) — Android + iOS
-- **Database:** PostgreSQL 16 + pgvector extension
+- **Database:** PostgreSQL 16 + pgvector extension, database `ptssb`, schema `hris_ssb`
 - **AI/ML:** InsightFace `buffalo_s` model (512-dim face embeddings)
 - **Containerized:** Docker Compose
 - **Timezone:** Per-site (WIB/WITA/WIT). All timestamps stored in UTC (`TIMESTAMPTZ`). Business logic converts to the site's local timezone.
@@ -49,7 +49,7 @@
 | Rate limiting | slowapi |
 | Face AI | InsightFace (`buffalo_s`) + OpenCV headless |
 | Vector DB | pgvector 0.3.5 (cosine similarity, threshold 0.3) |
-| Config | pydantic-settings (reads `.env`) |
+| Config | pydantic-settings (backend reads `backend/.env`; Docker Compose reads root `.env`) |
 | Container | Python 3.11-slim Docker image |
 
 ### Mobile
@@ -82,18 +82,20 @@
 | Toast | sonner |
 | Map | leaflet 1.9.4 + @types/leaflet — used in `SiteMapPicker` (Sites create/edit) |
 | Token storage | Access token: **memory only** (React Context). Refresh token: **sessionStorage** key `presensiv2_refresh_token`. NEVER localStorage |
-| Dev port | 5173 (Vite dev server) |
+| Dev port | 5173 (Vite dev server; `/api` proxies to backend) |
 
 ### Infrastructure
 | Service | Detail |
 |---------|--------|
 | Database | pgvector/pgvector:pg16 Docker image |
-| DB name | `presensiv2` |
+| DB name | `ptssb` |
+| DB schema | `hris_ssb` (backend uses `search_path=hris_ssb,public`) |
 | DB user | `presensiv2` |
-| DB port | 5432 |
+| DB port | 5432 for local laptop PostgreSQL; Docker maps host 5433 to container 5432 by default (`${DB_HOST_PORT:-5433}:5432`) |
 | Backend port | 8000 |
 | Web Admin dev port | 5173 |
 | Schema init | `database.sql` auto-applied via `entrypoint-initdb.d` |
+| Persistent volumes | `pgdata` for PostgreSQL; `insightface_models` for `/root/.insightface` model cache |
 
 ---
 
@@ -102,13 +104,14 @@
 ```
 presensiv2/
 ├── CLAUDE.md                    ← This file
-├── Aplikasi.md                  ← Master spec (phases, requirements)
-├── backend.md                   ← Backend architecture docs (authoritative)
-├── frontend.md                  ← Mobile architecture docs (authoritative)
 ├── database.sql                 ← SINGLE SOURCE OF TRUTH for DB schema
-├── docker-compose.yml           ← Orchestrates db + backend containers
+├── docker-compose.yml           ← Orchestrates db + backend + web + expo containers
+├── mdfile/                      ← Project documentation
+│   ├── Aplikasi.md              ← Master spec (phases, requirements)
+│   ├── backend.md               ← Backend architecture docs (authoritative)
+│   └── frontend.md              ← Mobile architecture docs (authoritative)
 │
-├── web/                         ← Web Admin panel (React + Vite) — W1–W5 complete
+├── web/                         ← Web Admin panel (React + Vite) — W6 complete + post-W6 additions
 │   ├── src/
 │   │   ├── api/                 ← auth, users, sites, shifts, attendance, overtime, assignments API modules
 │   │   ├── components/
@@ -123,7 +126,7 @@ presensiv2/
 │   │   ├── store/               ← authStore.ts (Context + tokenAccessors), AuthProvider.tsx
 │   │   ├── types/               ← auth.ts, users.ts, attendance.ts, overtime.ts
 │   │   └── utils/               ← datetime.ts (formatDateTime/Date/Time/Duration), toast.ts
-│   ├── .env                     ← VITE_API_BASE_URL=http://localhost:8000
+│   ├── vite.config.ts           ← loads VITE_API_BASE_URL + VITE_API_PROXY_TARGET for dev proxy
 │   └── index.html               ← title "HRIS SSB", favicon /ssb.svg
 │
 ├── backend/
@@ -131,6 +134,10 @@ presensiv2/
 │   ├── requirements.txt         ← Pinned deps (numpy==1.26.4 critical)
 │   ├── seed.py                  ← Idempotent DB seed: roles, 4 sites, 3 shifts+schedules, 45 users, 400 attendance records (Jan 1–10 2026)
 │   ├── migration_f6.sql         ← Add supervisor_id column (run on pre-F6 DBs)
+│   ├── migration_tz.sql         ← Timezone/TIMESTAMPTZ migration for existing DBs
+│   ├── migration_overtime_v2.sql ← Standalone overtime user_id + notes migration
+│   ├── migration_ot_notes.sql   ← supervisor_notes migration
+│   ├── migration_penugasan.sql  ← temporary_assignments migration
 │   ├── .env                     ← Runtime config (NOT committed)
 │   └── app/
 │       ├── main.py              ← App entry: lifespan, middleware, routers, auto-checkout worker
@@ -146,20 +153,23 @@ presensiv2/
 │       │   ├── site.py
 │       │   ├── shift.py
 │       │   ├── attendance.py
-│       │   └── overtime.py
+│       │   ├── overtime.py
+│       │   └── assignment.py
 │       ├── repositories/        ← Data access only (no business logic)
 │       │   ├── user_repository.py
 │       │   ├── site_repository.py
 │       │   ├── shift_repository.py
 │       │   ├── attendance_repository.py
-│       │   └── overtime_repository.py
+│       │   ├── overtime_repository.py
+│       │   └── assignment_repository.py
 │       ├── services/            ← Business logic layer
 │       │   ├── auth_service.py
 │       │   ├── site_service.py
 │       │   ├── shift_service.py
 │       │   ├── face_service.py
 │       │   ├── attendance_service.py
-│       │   └── overtime_service.py
+│       │   ├── overtime_service.py
+│       │   └── assignment_service.py
 │       └── routers/             ← HTTP routing + auth deps
 │           ├── auth.py
 │           ├── sites.py
@@ -167,7 +177,7 @@ presensiv2/
 │           ├── face.py
 │           ├── attendance.py
 │           ├── overtime.py
-│           ├── assignments.py   ← shift/site assignment management (ADMIN only)
+│           ├── assignments.py   ← shift/site assignment management + active assignment lookup
 │           └── users.py
 │
 └── mobile/
@@ -175,7 +185,7 @@ presensiv2/
     ├── app.json                 ← Expo app config
     ├── package.json
     ├── tsconfig.json
-    ├── .env                     ← EXPO_PUBLIC_API_BASE_URL, EXPO_PUBLIC_API_TIMEOUT
+    ├── .env                     ← Expo runtime config; API host defaults to auto discovery
     └── src/
         ├── api/
         │   ├── axios.ts         ← Axios instance + Bearer token interceptor + 401 refresh queue; exports BASE_URL
@@ -223,26 +233,28 @@ presensiv2/
 
 ## Database Schema
 
-**Source of truth:** `database.sql` (applied at container start)
+**Source of truth:** `database.sql` (applied at container start). It creates `hris_ssb` and sets `search_path` before creating tables.
 
 | Table | Key Columns | Notes |
 |-------|-------------|-------|
 | `roles` | `id`, `name` (ADMIN/SUPERVISOR/EMPLOYEE) | Seeded at init |
-| `users` | `employee_id`, `email`, `password_hash`, `role_id`, `site_id`, `face_embedding VECTOR(512)`, `failed_login_attempts`, `locked_until`, `supervisor_id` | supervisor_id added in migration_f6.sql |
+| `users` | `employee_id`, `email`, `password_hash`, `role_id`, `site_id`, `face_embedding VECTOR(512)`, `failed_login_attempts`, `locked_until`, `supervisor_id`, `password_changed_at` | supervisor_id added in migration_f6.sql |
 | `sites` | `name`, `latitude`, `longitude`, `radius_meter`, `timezone VARCHAR(50) DEFAULT 'Asia/Jakarta'` | WIB/WITA/WIT per site |
 | `shifts` | `site_id`, `name`, `start_time`, `end_time`, `is_cross_midnight`, `work_hours_standard` | CASCADE delete from sites |
 | `work_schedules` | `shift_id`, `day_of_week` (0=Sun…6=Sat), `toleransi_telat_menit` | CASCADE delete from shifts |
 | `holidays` | `holiday_date` (UNIQUE), `description`, `is_national` | |
-| `attendance` | `user_id`, `site_id`, `shift_id`, `checkin_time`, `checkout_time`, `auto_checkout`, `lat/lon`, `work_duration_minutes`, `overtime_minutes`, `is_weekend`, `is_holiday`, `status` | UNIQUE INDEX on (user_id, DATE(checkin_time)) |
-| `overtime_requests` | `attendance_id`, `requested_start`, `requested_end`, `approved_by`, `status` (PENDING/APPROVED/REJECTED) | CASCADE delete from attendance |
+| `attendance` | `user_id`, `site_id`, `shift_id`, `checkin_time`, `checkout_time`, `auto_checkout`, `lat/lon`, `work_duration_minutes`, `overtime_minutes`, `is_weekend`, `is_holiday`, `status` | Duplicate check-in prevention is in the application layer |
+| `overtime_requests` | `user_id`, `attendance_id`, `requested_start`, `requested_end`, `approved_by`, `status` (PENDING/APPROVED/REJECTED), `notes`, `supervisor_notes` | Standalone overtime allowed; CASCADE delete from attendance when linked |
 | `audit_logs` | `user_id`, `action`, `ip_address`, `user_agent`, `status` | Written on every login attempt |
+| `temporary_assignments` | `user_id`, `site_id`, `shift_id`, `start_date`, `end_date`, `notes`, `created_by` | Temporary site/shift assignment; CHECK `end_date >= start_date` |
 
 **Key DB constraints:**
-- `UNIQUE INDEX unique_daily_checkin` on `attendance(user_id, DATE(checkin_time))` — one check-in per day per user
+- All application tables live in schema `hris_ssb`; `public` is kept in `search_path` for extensions such as pgvector
+- No `unique_daily_checkin` DB index — one check-in per user per site-local day is enforced in the service layer
 - `ivfflat` vector index on `users(face_embedding vector_cosine_ops)` with `lists=100`
-- All FK cascades: sites→shifts→work_schedules; users→attendance
+- All FK cascades: sites→shifts→work_schedules; users→attendance; attendance→overtime_requests; temporary_assignments cascades on user/site/shift
 
-**Timezone note:** All timestamps stored as **UTC** using PostgreSQL `TIMESTAMPTZ` columns (`DateTime(timezone=True)` in SQLAlchemy). Business logic must convert to `ZoneInfo(site.timezone)` before any date/day-of-week/time-of-day comparison. The `unique_daily_checkin` constraint is enforced in the **application layer** (not a raw `DATE()` DB index), because the calendar-day boundary differs per site timezone.
+**Timezone note:** All timestamps stored as **UTC** using PostgreSQL `TIMESTAMPTZ` columns (`DateTime(timezone=True)` in SQLAlchemy). Business logic must convert to `ZoneInfo(site.timezone)` before any date/day-of-week/time-of-day comparison. Duplicate check-in prevention is enforced in the **application layer** (not a raw `DATE()` DB index), because the calendar-day boundary differs per site timezone.
 
 ---
 
@@ -277,7 +289,32 @@ docker compose down -v
 
 # Run migration for pre-F6 databases
 docker exec presensiv2_backend psql $DATABASE_URL -f migration_f6.sql
+
+# Run migrations for existing databases created before later schema additions
+docker exec presensiv2_backend psql $DATABASE_URL -f migration_tz.sql
+docker exec presensiv2_backend psql $DATABASE_URL -f migration_overtime_v2.sql
+docker exec presensiv2_backend psql $DATABASE_URL -f migration_ot_notes.sql
+docker exec presensiv2_backend psql $DATABASE_URL -f migration_penugasan.sql
 ```
+
+### Local Laptop PostgreSQL (No Docker DB)
+
+```powershell
+# Requires PostgreSQL on localhost:5432 with pgvector installed
+$env:PGPASSWORD="<your postgres password>"
+& "C:\Program Files\PostgreSQL\15\bin\psql.exe" -h localhost -p 5432 -U postgres -d postgres -c "DO `$`$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'presensiv2') THEN CREATE ROLE presensiv2 LOGIN PASSWORD 'presensiv2pass'; END IF; END `$`$;"
+& "C:\Program Files\PostgreSQL\15\bin\createdb.exe" -h localhost -p 5432 -U postgres -O presensiv2 ptssb
+& "C:\Program Files\PostgreSQL\15\bin\psql.exe" -h localhost -p 5432 -U postgres -d ptssb -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+$env:PGPASSWORD="presensiv2pass"
+& "C:\Program Files\PostgreSQL\15\bin\psql.exe" -h localhost -p 5432 -U presensiv2 -d ptssb -v ON_ERROR_STOP=1 -f database.sql
+
+# Backend .env for local API testing
+DATABASE_URL=postgresql+asyncpg://presensiv2:presensiv2pass@localhost:5432/ptssb
+DB_SCHEMA=hris_ssb
+```
+
+If `ptssb` already exists, `createdb` will fail; keep the existing DB only if it is intended. If local PostgreSQL does not have pgvector, `CREATE EXTENSION vector` fails. Use Docker DB (`localhost:5433`) or install pgvector into the local PostgreSQL instance first.
 
 ### Mobile (Expo)
 
@@ -408,12 +445,14 @@ Router → Service → Repository → Database
 
 ### Mobile `.env` Variables
 ```
-EXPO_PUBLIC_API_BASE_URL=http://<HOST>:8000
+EXPO_PUBLIC_API_BASE_URL=auto
+EXPO_PUBLIC_API_PORT=8000
 EXPO_PUBLIC_API_TIMEOUT=10000
 ```
-- Physical phone (Expo Go): use LAN IP of your PC
-- Android emulator: use `10.0.2.2`
-- Web: use `localhost`
+- `auto` derives the API host from the Expo dev server host and appends `EXPO_PUBLIC_API_PORT`
+- Physical phone (Expo Go): use `npx expo start --clear --lan`; no manual IP edit is normally required
+- Android emulator fallback: `10.0.2.2`
+- Fixed-network fallback: set `EXPO_PUBLIC_API_BASE_URL=http://<laptop-ip>:8000`, then restart Expo with `--clear`
 
 ---
 
@@ -434,7 +473,7 @@ EXPO_PUBLIC_API_TIMEOUT=10000
 - **Map container sizing:** `style={{ width: '100%', height: '100%', minHeight: 0 }}` — no fixed pixel height; fills flex parent
 - **Search:** Nominatim `https://nominatim.openstreetmap.org/search` — debounced 500 ms, fly-only (does not call `onChange`), headers `{ 'Accept-Language': 'id', 'User-Agent': 'presensiv2-webadmin' }`
 - **CSP** (`web/index.html`): `img-src` must include `https://*.tile.openstreetmap.org https://unpkg.com`; `connect-src` must include `https://nominatim.openstreetmap.org`
-- **CORS** (`backend/.env` + `docker-compose.yml` `environment` block): `CORS_ORIGINS` must list all Vite dev ports in use (5173, 5174, …). The `environment` block in `docker-compose.yml` overrides `env_file` — edit both or consolidate into `env_file` only. After any change: `docker compose up -d --force-recreate backend` (restart alone does not re-apply env)
+- **CORS:** `CORS_ORIGIN_REGEX` allows localhost, LAN private IPs, and Tailscale-style `100.64.0.0/10` origins for development. Add explicit production domains to `CORS_ORIGINS`. After env changes: `docker compose up -d --force-recreate backend` (restart alone does not re-apply env).
 
 ---
 
@@ -486,16 +525,32 @@ All 40 employees have **10 attendance records each (Jan 1–10, 2026)**: ONTIME,
 
 ---
 
-## Environment Variables (Backend `.env`)
+## Environment Files
+
+| File | Purpose |
+|------|---------|
+| `.env` | Shared Docker Compose defaults: DB name/schema/user, host ports, web proxy target, Expo auto API settings |
+| `.env.example` | Copyable template for root Compose defaults |
+| `backend/.env` | Backend runtime secrets and service config; Docker overrides DB URL/schema from root `.env` |
+| `backend/.env.example` | Backend runtime template |
+| `mobile/.env` | Expo public runtime config; defaults to `EXPO_PUBLIC_API_BASE_URL=auto` |
+| `mobile/.env.example` | Mobile runtime template |
+| `web/.env.example` | Optional Vite overrides for non-Docker local web development |
+
+`backend/.env.local` was removed because it duplicated `backend/.env`; use process env overrides or edit ignored local env files for machine-specific values.
+
+### Backend `.env`
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `DATABASE_URL` | `postgresql+asyncpg://presensiv2:presensiv2pass@db:5432/presensiv2` | Use `db` as host inside Docker |
+| `DATABASE_URL` | `postgresql+asyncpg://presensiv2:presensiv2pass@db:5432/ptssb` | Use `db` as host inside Docker; use `localhost:5432/ptssb` for local laptop PostgreSQL |
+| `DB_SCHEMA` | `hris_ssb` | SQLAlchemy asyncpg connection sets `search_path=hris_ssb,public` |
 | `SECRET_KEY` | *(change in prod)* | Min 32 chars |
 | `ALGORITHM` | `HS256` | |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | |
 | `CORS_ORIGINS` | JSON array | e.g. `["http://localhost:8081"]` |
+| `CORS_ORIGIN_REGEX` | local/LAN/Tailscale regex | Allows changing local IP/network without editing env |
 | `MAX_LOGIN_ATTEMPTS` | `5` | |
 | `ACCOUNT_LOCK_MINUTES` | `30` | |
 | `RATE_LIMIT_LOGIN` | `10/minute` | |
@@ -623,13 +678,13 @@ Never use `value=""` on `<SelectItem>` — Radix throws an error. Use named sent
 
 | Router | Prefix | Key endpoints |
 |--------|--------|---------------|
-| auth | `/auth` | POST /login, POST /refresh, GET /me |
-| sites | `/sites` | GET /sites, POST /sites, PUT /sites/{id}, DELETE /sites/{id} |
+| auth | `/auth` | POST /login, POST /refresh, GET /me, POST /change-password |
+| sites | `/sites` | GET /sites, POST /sites, PATCH /sites/{id}, DELETE /sites/{id} |
 | shifts | `/shifts` | CRUD + work_schedules + holidays |
 | face | `/face` | POST /register, POST /verify, GET /status, DELETE / |
-| attendance | `/attendance` | POST /checkin, POST /checkout, GET /me, GET /team, POST /trigger-auto-checkout |
+| attendance | `/attendance` | POST /checkin, POST /checkout, GET /me, GET /team, GET /, GET /{id}, POST /trigger-auto-checkout |
 | overtime | `/overtime` | POST /, GET /me, GET / (role-scoped), GET /{id}, GET /attendance/{att_id}, PATCH /{id}/approve, PATCH /{id}/reject |
-| assignments | `/assignments` | GET / (filter by user_id/site_id/active_only), POST /, DELETE /{id} — ADMIN only |
+| assignments | `/assignments` | GET /active (current user), GET / (filter by user_id/site_id/active_only), POST /, DELETE /{id} — mutations/admin list are ADMIN only |
 | users | `/users` | CRUD user management |
 
 Health check: `GET /health`

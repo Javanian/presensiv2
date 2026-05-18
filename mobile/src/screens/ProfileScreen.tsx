@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLogout } from '../hooks/useAuth';
-import { getAuthState } from '../store/authStore';
+import { useAuthState } from '../store/authStore';
 import { UserInfo } from '../types/auth';
 import { useFaceStatus } from '../hooks/useFaceRegister';
 import FaceRegisterModal from '../components/FaceRegisterModal';
@@ -66,7 +66,7 @@ function InfoRow({
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
-  const { user } = getAuthState();
+  const { user } = useAuthState();
   const logout = useLogout();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [faceModalVisible, setFaceModalVisible] = useState(false);

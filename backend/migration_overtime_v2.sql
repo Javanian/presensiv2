@@ -5,6 +5,9 @@
 -- Run on any database initialized before this migration:
 --   docker exec presensiv2_backend psql $DATABASE_URL -f migration_overtime_v2.sql
 
+CREATE SCHEMA IF NOT EXISTS hris_ssb;
+SET search_path TO hris_ssb, public;
+
 ALTER TABLE overtime_requests ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id);
 ALTER TABLE overtime_requests ADD COLUMN IF NOT EXISTS notes VARCHAR(500);
 

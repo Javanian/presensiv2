@@ -2,6 +2,9 @@
 -- Run this on existing databases that were initialized before Phase F6.
 -- Safe to run multiple times (uses IF NOT EXISTS / IF EXISTS guards).
 
+CREATE SCHEMA IF NOT EXISTS hris_ssb;
+SET search_path TO hris_ssb, public;
+
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS supervisor_id INT REFERENCES users(id) ON DELETE SET NULL;
 

@@ -172,7 +172,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Presensi SSB</Text>
+        <Text style={styles.headerTitle}>HadirOps</Text>
         <Text style={styles.headerDate}>{formatDate()}</Text>
       </View>
       <OfflineBanner />

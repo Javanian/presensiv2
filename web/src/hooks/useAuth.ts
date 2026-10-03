@@ -4,7 +4,7 @@ import { authApi } from '@/api/auth.api'
 import { isAxiosError } from '@/api/axios'
 import { tokenAccessors, REFRESH_TOKEN_KEY, useAuthStore } from '@/store/authStore'
 import { queryClient } from '@/lib/queryClient'
-import type { LoginPayload } from '@/types/auth'
+import type { LoginPayload, UserRole } from '@/types/auth'
 
 export function useLogin() {
   const { login } = useAuthStore()
@@ -58,7 +58,7 @@ export function useCurrentUser() {
 }
 
 // Helper to check if current user has a given role
-export function useHasRole(...roles: Array<'ADMIN' | 'SUPERVISOR' | 'EMPLOYEE'>) {
+export function useHasRole(...roles: UserRole[]) {
   const { user } = useAuthStore()
   if (!user) return false
   return roles.includes(user.role)

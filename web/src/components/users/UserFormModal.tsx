@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -48,13 +48,6 @@ interface Props {
 export function UserFormModal({ open, onClose, editingUser }: Props) {
   const qc = useQueryClient()
   const isEdit = editingUser !== null
-
-  const { data: sites = [] } = useQuery({
-    queryKey: ['sites'],
-    queryFn: usersApi.listSites,
-    enabled: open,
-    staleTime: 5 * 60_000,
-  })
 
   const {
     register: regCreate, handleSubmit: handleCreate, control: controlCreate,

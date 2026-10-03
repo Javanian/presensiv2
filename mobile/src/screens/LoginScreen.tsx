@@ -92,23 +92,21 @@ export default function LoginScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoBox}>
-              <Text style={styles.logoText}>P</Text>
-            </View>
-            <Text style={styles.appName}>Presensi SSB</Text>
-            <Text style={styles.subtitle}>Attendance Management</Text>
+            <Text style={styles.appName}>HadirOps</Text>
+            <Text style={styles.subtitle}>Presensi dan operasional karyawan</Text>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email / Employee ID</Text>
+              <Text style={styles.label}>Email atau ID karyawan</Text>
               <TextInput
                 style={styles.input}
                 value={identifier}
                 onChangeText={setIdentifier}
-                placeholder="Enter email or employee ID"
-                placeholderTextColor="#9CA3AF"
+                placeholder="Masukkan email atau ID karyawan"
+                placeholderTextColor="#5A7184"
+                accessibilityLabel="Email atau ID karyawan"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -118,14 +116,15 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>Kata sandi</Text>
               <View style={styles.passwordRow}>
                 <TextInput
                   style={[styles.input, styles.passwordInput]}
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="Enter password"
-                  placeholderTextColor="#9CA3AF"
+                  placeholder="Masukkan kata sandi"
+                  placeholderTextColor="#5A7184"
+                  accessibilityLabel="Kata sandi"
                   secureTextEntry={secureText}
                   textContentType="password"
                   returnKeyType="done"
@@ -135,9 +134,10 @@ export default function LoginScreen() {
                 <Pressable
                   style={styles.eyeBtn}
                   onPress={() => setSecureText((v) => !v)}
-                  accessibilityLabel={secureText ? 'Show password' : 'Hide password'}
+                  accessibilityRole="button"
+                  accessibilityLabel={secureText ? 'Tampilkan kata sandi' : 'Sembunyikan kata sandi'}
                 >
-                  <Text style={styles.eyeText}>{secureText ? '👁' : '🙈'}</Text>
+                  <Text style={styles.eyeText}>{secureText ? 'Lihat' : 'Tutup'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -162,7 +162,7 @@ export default function LoginScreen() {
               {login.isPending ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.buttonText}>Login</Text>
+                <Text style={styles.buttonText}>Masuk ke HadirOps</Text>
               )}
             </Pressable>
           </View>
@@ -175,7 +175,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F5F9FC',
   },
   flex: {
     flex: 1,
@@ -190,24 +190,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  logoBox: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  logoText: {
+  appName: {
     fontSize: 36,
     fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  appName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+    color: '#15607F',
     marginBottom: 4,
   },
   subtitle: {
@@ -247,7 +233,7 @@ const styles = StyleSheet.create({
   },
   eyeBtn: {
     height: 48,
-    width: 48,
+    width: 64,
     borderWidth: 1,
     borderColor: '#D1D5DB',
     borderTopRightRadius: 10,
@@ -257,7 +243,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   eyeText: {
-    fontSize: 18,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#15607F',
   },
   errorBox: {
     backgroundColor: '#FEF2F2',
@@ -272,14 +260,14 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 52,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#15607F',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
   },
   buttonDisabled: {
-    backgroundColor: '#93C5FD',
+    opacity: 0.55,
   },
   buttonText: {
     fontSize: 16,

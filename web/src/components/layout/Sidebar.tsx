@@ -50,26 +50,21 @@ export function Sidebar({ onClose }: SidebarProps) {
   const navItems = user?.role === 'ADMIN' ? ADMIN_NAV : SUPERVISOR_NAV
 
   return (
-    <nav className="flex flex-col h-full w-[240px] bg-surface border-r border-divider">
+    <nav aria-label="Navigasi utama" className="flex flex-col h-full w-[240px] bg-white border-r border-divider">
       {/* Brand header */}
       <div className="h-16 flex items-center px-4 gap-3 bg-brand flex-shrink-0">
-        {/* Logo mark */}
-        <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-sm select-none">P</span>
-        </div>
-
         <div className="flex-1 min-w-0">
-          <p className="text-white font-semibold text-sm leading-tight truncate">
-            Presensi Online SSB
+          <p className="text-white font-semibold text-xl leading-tight truncate">
+            HadirOps
           </p>
-          <p className="text-white/60 text-xs leading-tight">v2 Admin Panel</p>
+          <p className="text-white text-xs leading-tight mt-1">Manajemen presensi</p>
         </div>
 
         {/* Close button — mobile only */}
         {onClose && (
           <button
             onClick={onClose}
-            className="flex-shrink-0 p-1 rounded text-white/70 hover:text-white hover:bg-white/10 transition-colors lg:hidden"
+            className="flex-shrink-0 h-11 w-11 flex items-center justify-center rounded text-white hover:bg-white/10 transition-colors lg:hidden"
             aria-label="Tutup sidebar"
           >
             <X size={18} />
@@ -83,12 +78,13 @@ export function Sidebar({ onClose }: SidebarProps) {
           <li key={to}>
             <NavLink
               to={to}
+              onClick={onClose}
               end={to === '/dashboard'}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors',
+                  'flex min-h-11 items-center gap-3 mx-3 my-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-brand/10 text-brand border-r-2 border-brand'
+                    ? 'bg-brand/10 text-brand-dark'
                     : 'text-text-secondary hover:bg-brand/5 hover:text-text-primary',
                 )
               }

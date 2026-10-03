@@ -12,7 +12,7 @@ const config: Config = {
       colors: {
         brand: {
           light: '#6FB0CC',   // section backgrounds, icon fills, focus rings — NEVER text
-          DEFAULT: '#1C7FAF', // nav, sidebar active, headings, links — safe on white (4.6:1)
+          DEFAULT: '#156F99', // darker blue keeps white labels readable
           dark: '#15607F',    // hover on brand.DEFAULT
         },
         accent: '#F79A1B',    // CTA buttons only; use dark text (#1A1A1A) on this bg

@@ -93,8 +93,8 @@ async def lifespan(app: FastAPI):
 # ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Presensi Online SSB v2",
-    description="Attendance Management System — FastAPI backend",
+    title="HadirOps API",
+    description="API manajemen presensi, shift, penugasan, dan lembur.",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
